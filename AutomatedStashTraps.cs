@@ -1,4 +1,4 @@
-﻿using Facepunch;
+using Facepunch;
 using Newtonsoft.Json;
 using Oxide.Core;
 using Oxide.Core.Configuration;
@@ -10,17 +10,17 @@ using ProtoBuf;
 using Rust;
 using Rust.Workshop;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Net;
+using System.Text.RegularExpressions;
 using UnityEngine;
 using Random = UnityEngine.Random;
-using System.Collections;
 
 namespace Oxide.Plugins
 {
-    [Info("Automated Stash Traps", "Dana", "2.0.0")]
+    [Info("Automated Stash Traps", "Dana", "2.1.0")]
     [Description("Spawns fully automated stash traps across the map to catch ESP cheaters.")]
     public class AutomatedStashTraps : RustPlugin
     {
@@ -147,6 +147,24 @@ namespace Oxide.Plugins
 
             [JsonProperty(PropertyName = "Embed Color")]
             public string EmbedColor { get; set; }
+
+            [JsonIgnore]
+            private int color;
+
+            [JsonIgnore]
+            private bool colorIsValidated;
+
+            public int GetColor()
+            {
+                if (!colorIsValidated)
+                {
+                    if (!int.TryParse(EmbedColor.TrimStart('#'), NumberStyles.HexNumber, null, out color))
+                        color = 16777215;
+
+                    colorIsValidated = true;
+                }
+                return color;
+            }
         }
 
         private class StashLootOptions
@@ -199,7 +217,7 @@ namespace Oxide.Plugins
             [JsonIgnore]
             private bool itemIsValidated;
 
-            // Inspired by WhiteThunder's AutomatedWorkcarts plugin.
+            // Inspired by WhiteThunder.
             /// <summary>
             /// Returns the item definition associated with this item.
             /// </summary>
@@ -388,6 +406,21 @@ namespace Oxide.Plugins
             {
                 PrintWarning("Invalid trap removal time value. To avoid potential entity leaks, this value must be greater than 0. Default value of 5 will be applied.");
                 config.AutomatedTrap.DestroyRevealedTrapAfterMinutes = 5;
+            }
+
+            if (config.Discord.PostIntoDiscord)
+            {
+                if (string.IsNullOrWhiteSpace(config.Discord.WebhookUrl) || !config.Discord.WebhookUrl.StartsWith("https://discord.com/api/webhooks/"))
+                {
+                    PrintWarning("Invalid webhook url provided. Please provide a valid webhook url to post into Discord.");
+                    config.Discord.PostIntoDiscord = false;
+                }
+
+                if (string.IsNullOrWhiteSpace(config.Discord.EmbedColor) || !config.Discord.EmbedColor.StartsWith("#"))
+                {
+                    PrintWarning("Invalid color provided. The color must be a valid hex color code. Default color of #FFFFFF will be applied.");
+                    config.Discord.EmbedColor = "#FFFFFF";
+                }
             }
 
             if (config.StashLoot.MinimumLootSpawnSlots < 1)
@@ -629,6 +662,9 @@ namespace Oxide.Plugins
         /// <param name="stash"> The stash container that has been destroyed. </param>
         private void OnEntityKill(StashContainer stash)
         {
+            if (player.IsAdmin)
+                return;
+
             if (stash.IsValid())
                 HandleDestroyedStash(stash);
         }
@@ -640,6 +676,9 @@ namespace Oxide.Plugins
         /// <param name="player"> The player who revealed the stash. </param>
         private void OnStashExposed(StashContainer stash, BasePlayer player)
         {
+            if (player.IsAdmin)
+                return;
+
             OnStashTriggered(stash, player, stashWasDestroyed: false);
         }
 
@@ -971,7 +1010,7 @@ namespace Oxide.Plugins
             if (config.Discord.PostIntoDiscord)
                 SendDiscordReport(stash, player, stashWasDestroyed);
 
-            if (data.GetPlayerRevealedTrapsCount(player) >= config.Moderation.RevealedTrapsTolerance)
+            if (config.Moderation.AutomaticBan && data.GetPlayerRevealedTrapsCount(player) >= config.Moderation.RevealedTrapsTolerance)
                 Ban(player);
         }
 
@@ -1000,9 +1039,6 @@ namespace Oxide.Plugins
 
         private void Ban(BasePlayer player)
         {
-            if (Permission.Verify(player))
-                return;
-
             timer.Once(config.Moderation.BanDelaySeconds, () =>
             {
                 player.IPlayer.Ban(config.Moderation.BanReason);
@@ -1470,17 +1506,6 @@ namespace Oxide.Plugins
                 return $"[{player.displayName}](https://steamcommunity.com/profiles/{player.userID})";
         }
 
-        private int ParseColor(string hexadecimalColor)
-        {
-            // Try to convert the hexadecimal color value to an integer.
-            int color;
-            if (!int.TryParse(hexadecimalColor, NumberStyles.HexNumber, null, out color))
-                // Set the default color value if the conversion fails.
-                color = 16777215;
-
-            return color;
-        }
-
         private void SendDiscordReport(StashContainer stash, BasePlayer player, bool stashWasKilled)
         {
             Vector3 stashPosition = stash.ServerPosition;
@@ -1492,7 +1517,7 @@ namespace Oxide.Plugins
 
             DiscordWebhook.Embed embed = new DiscordWebhook.Embed
             {
-                Color = ParseColor(config.Discord.EmbedColor),
+                Color = config.Discord.GetColor(),
                 Footer = new DiscordWebhook.EmbedFooter
                 {
                     Text = $"{covalence.Server.Name} | client.connect {covalence.Server.Address}:{covalence.Server.Port}",
@@ -1559,12 +1584,44 @@ namespace Oxide.Plugins
             // Send a request to the Discord webhook url with the json-serialized message object.
             webrequest.Enqueue(config.Discord.WebhookUrl, message.ToString(), (headerCode, headerResult) =>
             {
-                // Check the status code of the response
-                if (headerCode >= 200 && headerCode <= 204)
-                {
-                    // Do something if the request was successful
-                }
+                HandleResponse(headerCode, headerResult);
             }, this, RequestMethod.POST, new Dictionary<string, string> { { "Content-Type", "application/json" } });
+        }
+
+        private void HandleResponse(int headerCode, string headerResult)
+        {
+            if (headerCode >= 200 && headerCode <= 204)
+                Puts("Request sent successfully.");
+            else
+            {
+                switch (headerCode)
+                {
+                    case 400:
+                        PrintError("Error: Bad Request");
+                        break;
+                    case 401:
+                        PrintError("Error: Unauthorized");
+                        break;
+                    case 403:
+                        PrintError("Error: Forbidden");
+                        break;
+                    case 404:
+                        PrintError("Error: Not Found");
+                        break;
+                    case 429:
+                        PrintError("Error: Rate Limit Reached");
+                        break;
+                    case 500:
+                        PrintError("Error: Internal Server Error");
+                        break;
+                    case 503:
+                        PrintError("Error: Service Unavailable");
+                        break;
+                    default:
+                        PrintError("Error: " + headerResult);
+                        break;
+                }
+            }
         }
 
         private class DiscordWebhook
@@ -1603,9 +1660,9 @@ namespace Oxide.Plugins
                 /// </summary>
                 public Message()
                 {
+                    // Username = string.Empty;
+                    // IconUrl = string.Empty;
                     Content = string.Empty;
-                    Username = string.Empty;
-                    IconUrl = string.Empty;
                     Embeds = new List<Embed>();
                 }
 
@@ -1626,6 +1683,7 @@ namespace Oxide.Plugins
                 {
                     return JsonConvert.SerializeObject(this, new JsonSerializerSettings
                     {
+                        NullValueHandling = NullValueHandling.Ignore,
                         DefaultValueHandling = DefaultValueHandling.Ignore
                     });
                 }
@@ -2054,13 +2112,12 @@ namespace Oxide.Plugins
                 return null;
             }
 
-            // Remove unnecessary components that would destroy the storage container when it's no longer
-            // supported by the ground or when the ground beneath it disappears.
+            // Remove unnecessary components that would destroy the storage container when it's no longer supported by the ground.
             UnityEngine.Object.DestroyImmediate(storageContainer.GetComponent<DestroyOnGroundMissing>());
             UnityEngine.Object.DestroyImmediate(storageContainer.GetComponent<GroundWatch>());
 
-            // Disable networking and saving.
-            storageContainer.limitNetworking = true;
+           // Disable networking and saving.
+           storageContainer.limitNetworking = true;
             storageContainer.EnableSaving(false);
             // Spawn the storage container.
             storageContainer.Spawn();
@@ -2072,7 +2129,6 @@ namespace Oxide.Plugins
 
         #region Functions
 
-        // Todo: Improve by adding a ddraw radius around the player
         private void DrawTraps(BasePlayer player, int drawDuration = 30)
         {
             if (!data.AutomatedTraps.Any())
@@ -2080,15 +2136,15 @@ namespace Oxide.Plugins
 
             foreach (AutomatedTrapData trap in data.AutomatedTraps.Values)
             {
-                player.SendConsoleCommand("ddraw.sphere", drawDuration, GetColor("#BDBDBD"), trap.DummyStash.Position, config.SpawnPoint.PositionScanRadius);
+                player.SendConsoleCommand("ddraw.sphere", drawDuration, ParseColor("#BDBDBD", Color.white), trap.DummyStash.Position, config.SpawnPoint.PositionScanRadius);
 
-                player.SendConsoleCommand("ddraw.text", drawDuration, GetColor("#F2C94C"), trap.DummyStash.Position + new Vector3(0, 0.7f, 0), $"<size=30>{trap.DummyStash.Id}</size>");
-                player.SendConsoleCommand("ddraw.sphere", drawDuration, GetColor("#BDBDBD"), trap.DummyStash.Position, 0.5f);
+                player.SendConsoleCommand("ddraw.sphere", drawDuration, ParseColor("#BDBDBD", Color.white), trap.DummyStash.Position, 0.5f);
+                player.SendConsoleCommand("ddraw.text", drawDuration, ParseColor("#F2C94C", Color.white), trap.DummyStash.Position + new Vector3(0, 0.7f, 0), $"<size=30>{trap.DummyStash.Id}</size>");
 
                 if (trap.DummySleepingBag != null)
                 {
-                    player.SendConsoleCommand("ddraw.text", drawDuration, GetColor("#F2994A"), trap.DummySleepingBag.Position + new Vector3(0, 1.5f, 0), $"<size=30>{trap.DummySleepingBag.Id}</size>");
-                    player.SendConsoleCommand("ddraw.sphere", drawDuration, GetColor("#BDBDBD"), trap.DummySleepingBag.Position, 1.3f);
+                    player.SendConsoleCommand("ddraw.sphere", drawDuration, ParseColor("#BDBDBD", Color.white), trap.DummySleepingBag.Position, 1.3f);
+                    player.SendConsoleCommand("ddraw.text", drawDuration, ParseColor("#F2994A", Color.white), trap.DummySleepingBag.Position + new Vector3(0, 1.5f, 0), $"<size=30>{trap.DummySleepingBag.Id}</size>");
                 }
             }
         }
@@ -2098,7 +2154,7 @@ namespace Oxide.Plugins
         #region Helper Functions
 
         /// <summary>
-        /// Searches the world for a BaseEntity object by its entity id.
+        /// Searches the map for an entity by its id.
         /// </summary>
         /// <param name="entityId"> The id of the entity to find. </param>
         /// <returns> The BaseEntity object with the specified id, or null if no such entity exists in the world or is valid. </returns>
@@ -2119,28 +2175,11 @@ namespace Oxide.Plugins
             return Random.Range(0, 100) < chance ? true : false;
         }
 
-        private Color GetColor(string hexColor)
+        // Inspired by WhiteThunder.
+        private Color ParseColor(string hexadecimalColor, Color defaultColor)
         {
-            if (string.IsNullOrEmpty(hexColor))
-                hexColor = "#FFFFFFFF";
-
-            string str = hexColor.Trim('#');
-
-            if (str.Length == 3)
-                str += str;
-
-            if (str.Length == 6)
-                str += "FF";
-
-            if (str.Length != 8)
-                str = "FFFFFFFF";
-
-            byte r = byte.Parse(str.Substring(0, 2), NumberStyles.HexNumber);
-            byte g = byte.Parse(str.Substring(2, 2), NumberStyles.HexNumber);
-            byte b = byte.Parse(str.Substring(4, 2), NumberStyles.HexNumber);
-            byte a = byte.Parse(str.Substring(6, 2), NumberStyles.HexNumber);
-
-            return new Color32(r, g, b, a);
+            Color color;
+            return ColorUtility.TryParseHtmlString(hexadecimalColor, out color) ? color : defaultColor;
         }
 
         #endregion
@@ -2218,8 +2257,7 @@ namespace Oxide.Plugins
             // Proceed if the item was created successfully.
             if (item != null)
             {
-                // Add the item to the player's inventory, automatically determining the best container to put it in.
-                // If there is no space in the inventory, the item will be dropped.
+                // Add the item to the player's inventory.
                 player.GiveItem(item);
                 manualTrapDeployers.Add(player);
             }
@@ -2237,7 +2275,16 @@ namespace Oxide.Plugins
             if (!Permission.Verify(player))
                 return;
 
-            DrawTraps(player);
+            if (conArgs.HasArgs())
+            {
+                int drawDuration = conArgs.GetInt(0);
+                if (drawDuration != 0)
+                    DrawTraps(player, drawDuration);
+                else
+                    return;
+            }
+            else
+                DrawTraps(player);
         }
 
         [ConsoleCommand(Command.Report)]
