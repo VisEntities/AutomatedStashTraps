@@ -14,7 +14,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Text.RegularExpressions;
+using System.Net;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
@@ -662,9 +662,6 @@ namespace Oxide.Plugins
         /// <param name="stash"> The stash container that has been destroyed. </param>
         private void OnEntityKill(StashContainer stash)
         {
-            if (player.IsAdmin)
-                return;
-
             if (stash.IsValid())
                 HandleDestroyedStash(stash);
         }
@@ -1030,6 +1027,9 @@ namespace Oxide.Plugins
             if (buildingBlock != null)
             {
                 BasePlayer buildingBlockOwner = FindPlayerById(buildingBlock.OwnerID);
+                if (buildingBlockOwner.IsAdmin)
+                    return;
+
                 OnStashTriggered(stash, buildingBlockOwner, stashWasDestroyed: true);
             }
 
