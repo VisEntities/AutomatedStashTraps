@@ -20,7 +20,7 @@ using Random = UnityEngine.Random;
 
 namespace Oxide.Plugins
 {
-    [Info("Automated Stash Traps", "Dana", "1.1.0")]
+    [Info("Automated Stash Traps", "Dana", "1.2.0")]
     [Description("Spawns fully automated stash traps across the map to catch ESP cheaters.")]
     public class AutomatedStashTraps : RustPlugin
     {
