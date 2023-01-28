@@ -1204,6 +1204,19 @@ namespace Oxide.Plugins
 
         #endregion Trap Trigger
 
+        #region Api
+        
+        private bool StashIsAutomatedTrap(StashContainer stash)
+        {
+            AutomatedTrapData trap = data.GetTrapData(stash.net.ID);
+            if (trap != null)
+                return true;
+
+            return false;
+        }
+
+        #endregion Api
+
         #region Spawn Point Management
 
         /// <summary>
@@ -2472,8 +2485,8 @@ namespace Oxide.Plugins
                     if (member != null)
                     {
                         string onlineStatus = member.IsConnected ? "Online" : "Offline";
-                        string isLeader = memberId == leader ? " Leader" : "";
-                        teamInfo.AppendLine($"{FormatPlayerName(member)} {member.UserIDString} {onlineStatus} ({isLeader})");
+                        string isLeader = memberId == leader ? "(Leader)" : "";
+                        teamInfo.AppendLine($"{FormatPlayerName(member)} {member.UserIDString} {onlineStatus} {isLeader}");
                     }
                 }
             }
