@@ -20,7 +20,7 @@ using Random = UnityEngine.Random;
 
 namespace Oxide.Plugins
 {
-    [Info("Automated Stash Traps", "Dana", "1.2.0")]
+    [Info("Automated Stash Traps", "Dana", "1.3.0")]
     [Description("Spawns fully automated stash traps across the map to catch ESP cheaters.")]
     public class AutomatedStashTraps : RustPlugin
     {
@@ -39,6 +39,7 @@ namespace Oxide.Plugins
 
         // Coroutine reference for spawning automated traps.
         private Coroutine spawnCoroutine;
+        private Timer reportScheduler;
 
         // List of players who are manually deploying traps.
         private List<BasePlayer> manualTrapDeployers = new List<BasePlayer>();
@@ -46,6 +47,8 @@ namespace Oxide.Plugins
         private HashSet<uint> revealedOwnedStashes = new HashSet<uint>();
         // Dictionary of players who are currently editing the stash loot table.
         private Dictionary<BasePlayer, StorageContainer> activeLootEditors = new Dictionary<BasePlayer, StorageContainer>();
+
+        private Queue<DiscordWebhook.Message> queuedDiscordReports = new Queue<DiscordWebhook.Message>();
 
         // Prefab paths. 
         private const string BLUEPRINT_TEMPLATE = "blueprintbase";
@@ -124,19 +127,19 @@ namespace Oxide.Plugins
 
             [JsonProperty(PropertyName = "Randomized Skin Chance")]
             public int RandomizedSkinChance { get; set; }
-            
+
             [JsonProperty(PropertyName = "Randomized Nice Name Chance")]
             public int RandomizedNiceNameChance { get; set; }
         }
-        
+
         private class ViolationOptions
         {
             [JsonProperty(PropertyName = "Reset On Wipe")]
             public bool ResetOnWipe { get; set; }
-            
+
             [JsonProperty(PropertyName = "Can Teammate Ignore")]
             public bool CanTeammateIgnore { get; set; }
-            
+
             [JsonProperty(PropertyName = "Can Clanmate Ignore")]
             public bool CanClanmateIgnore { get; set; }
         }
@@ -159,10 +162,13 @@ namespace Oxide.Plugins
         private class DiscordOptions
         {
             [JsonProperty(PropertyName = "Post Into Discord")]
-            public bool Enable { get; set; }
+            public bool PostIntoDiscord { get; set; }
 
             [JsonProperty(PropertyName = "Webhook Url")]
             public string WebhookUrl { get; set; }
+
+            [JsonProperty(PropertyName = "Report Interval")]
+            public float ReportInterval { get; set; }
 
             [JsonProperty(PropertyName = "Message")]
             public string Message { get; set; }
@@ -342,8 +348,9 @@ namespace Oxide.Plugins
 
                 Discord = new DiscordOptions
                 {
-                    Enable = false,
+                    PostIntoDiscord = false,
                     WebhookUrl = string.Empty,
+                    ReportInterval = 60f,
                     Message = "Cheater, cheater, pumpkin eater! Looks like someone's been caught breaking the rules!",
                     EmbedTitle = "A cheater has been spotted",
                     EmbedColor = "#FFFFFF",
@@ -516,6 +523,11 @@ namespace Oxide.Plugins
                 config.Moderation = defaultConfig.Moderation;
             }
 
+            if (string.Compare(config.Version, "1.3.0") < 0)
+            {
+                config.Discord.ReportInterval = defaultConfig.Discord.ReportInterval;
+            }
+
             PrintWarning("Configuration update complete! Updated from version " + config.Version + " to " + Version.ToString());
             config.Version = Version.ToString();
         }
@@ -530,12 +542,12 @@ namespace Oxide.Plugins
                 config.AutomatedTrap.DestroyRevealedTrapAfterMinutes = 5;
             }
 
-            if (config.Discord.Enable)
+            if (config.Discord.PostIntoDiscord)
             {
                 if (string.IsNullOrWhiteSpace(config.Discord.WebhookUrl) || !config.Discord.WebhookUrl.StartsWith("https://discord.com/api/webhooks/"))
                 {
                     PrintError("Invalid webhook url provided. Please provide a valid webhook url to post into Discord.");
-                    config.Discord.Enable = false;
+                    config.Discord.PostIntoDiscord = false;
                 }
 
                 if (string.IsNullOrWhiteSpace(config.Discord.EmbedColor) || !config.Discord.EmbedColor.StartsWith("#"))
@@ -554,7 +566,7 @@ namespace Oxide.Plugins
             if (config.StashLoot.MaximumLootSpawnSlots > 6)
             {
                 PrintError("Invalid maximum loot spawn slots value. Default value of 6 will be applied.");
-                config.StashLoot.MaximumLootSpawnSlots = 6;               
+                config.StashLoot.MaximumLootSpawnSlots = 6;
             }
 
             List<ItemInfo> invalidItems = config.StashLoot.LootTable.Where(item => item.GetItemDefinition() == null).ToList();
@@ -623,7 +635,7 @@ namespace Oxide.Plugins
                 Violations.TryGetValue(player.userID, out revealedTraps);
                 Violations[player.userID] = revealedTraps + 1;
             }
-            
+
             public int GetPlayerRevealedTrapsCount(BasePlayer player)
             {
                 int revealedTraps;
@@ -736,6 +748,9 @@ namespace Oxide.Plugins
             spawnPointManager.ClearAvailableSpawnPoints();
 
             lastRevealedStashPosition = Vector3.zero;
+
+            if (reportScheduler != null)
+                reportScheduler.Destroy();
 
             instance = null;
             config = null;
@@ -1159,11 +1174,24 @@ namespace Oxide.Plugins
             data.CreateOrUpdatePlayerData(player);
             data.Save();
 
-            if (config.Moderation.AutomaticBan && data.GetPlayerRevealedTrapsCount(player) >= config.Moderation.ViolationsTolerance)
-                BanPlayer(player);
+            int Violations = data.GetPlayerRevealedTrapsCount(player);
+            if (config.Moderation.AutomaticBan && Violations >= config.Moderation.ViolationsTolerance)
+                IssueBan(player);
 
-            if (config.Discord.Enable)
-                SendDiscordMessage(stash, player, stashWasDestroyed);
+            if (config.Discord.PostIntoDiscord)
+            {
+                DiscordWebhook.Message message = ConstructDiscordReport(stash, player, stashWasDestroyed);
+                queuedDiscordReports.Enqueue(message);
+
+                if (reportScheduler == null)
+                {
+                    reportScheduler = timer.Once(config.Discord.ReportInterval, () =>
+                    {
+                        PushQueuedDiscordReports();
+                        reportScheduler = null;
+                    });
+                }
+            }
         }
 
         private void HandleDestroyedStash(StashContainer stash)
@@ -1192,7 +1220,7 @@ namespace Oxide.Plugins
             Pool.FreeList(ref nearbyBuildingBlocks);
         }
 
-        private void BanPlayer(BasePlayer player)
+        private void IssueBan(BasePlayer player)
         {
             timer.Once(config.Moderation.BanDelaySeconds, () =>
             {
@@ -1205,7 +1233,7 @@ namespace Oxide.Plugins
         #endregion Trap Trigger
 
         #region Api
-        
+
         private bool StashIsAutomatedTrap(StashContainer stash)
         {
             AutomatedTrapData trap = data.GetTrapData(stash.net.ID);
@@ -1321,14 +1349,14 @@ namespace Oxide.Plugins
             /// <param name="parentSpawnPoint"> The position of the parent spawn point. </param>
             /// <returns> A tuple containing the position and rotation of the child spawn point. </returns>
             public Tuple<Vector3, Quaternion> FindChildSpawnPoint(Vector3 parentPosition)
-            {               
+            {
                 // Generate a random point within a certain distance from the given spawn point.
                 Vector2 randomPointInRange = ((Random.insideUnitCircle * 0.60f) + new Vector2(0.45f, 0.45f)) * config.SpawnPoint.SafeAreaRadius;
-                
+
                 // Shift the random point to be relative to the parent spawn point, and adjust its height to match the terrain height at that spawn point.
                 Vector3 childPosition = new Vector3(parentPosition.x + randomPointInRange.x, parentPosition.y, parentPosition.z + randomPointInRange.y);
                 childPosition.y = TerrainMeta.HeightMap.GetHeight(childPosition);
-                
+
                 // Adjust the rotation.
                 Tuple<Vector3, Quaternion> childSpawnPoint = FinalizeSpawnPoint(childPosition);
                 return childSpawnPoint;
@@ -1460,7 +1488,7 @@ namespace Oxide.Plugins
                 // Get a list of colliders in a sphere around the given position.
                 List<Collider> colliders = Pool.GetList<Collider>();
                 Vis.Colliders(position, config.SpawnPoint.SafeAreaRadius, colliders, LayerMask.GetMask("World"), QueryTriggerInteraction.Ignore);
-                
+
                 // The result flag. Set to false by default.
                 bool result = false;
 
@@ -1624,12 +1652,31 @@ namespace Oxide.Plugins
 
         #region Discord Integration
 
-        private void SendDiscordMessage(StashContainer stash, BasePlayer player, bool stashWasKilled)
+        private void PushQueuedDiscordReports()
         {
-            DiscordWebhook.Message message = new DiscordWebhook.Message
+            while (queuedDiscordReports.Count > 0)
             {
-                Content = config.Discord.Message,
-            };
+                DiscordWebhook.Message message = queuedDiscordReports.Dequeue();
+                webhook.SendRequest(config.Discord.WebhookUrl, message);
+
+                if (queuedDiscordReports.Count > 0)
+                {
+                    timer.Once(0.5f, () =>
+                    {
+                        PushQueuedDiscordReports();
+                    });
+                    return;
+                }
+            }
+        }
+         
+        private DiscordWebhook.Message ConstructDiscordReport(StashContainer stash, BasePlayer player, bool stashWasKilled)
+        {
+            DiscordWebhook.Message message = new DiscordWebhook.Message();
+            if (queuedDiscordReports.Count == 0)
+                message.Content = config.Discord.Message;
+            else
+                message.Content = null;
 
             DiscordWebhook.Embed embed = new DiscordWebhook.Embed
             {
@@ -1655,7 +1702,7 @@ namespace Oxide.Plugins
             }
 
             message.Embeds.Add(embed);
-            webhook.SendRequest(config.Discord.WebhookUrl, message);
+            return message;
         }
 
         private class DiscordWebhook
@@ -2119,7 +2166,7 @@ namespace Oxide.Plugins
                     // Skip the item if it couldn't be created.
                     if (item == null)
                         continue;
-                   
+
                     // Try to add the item to the storage container.
                     if (!item.MoveToContainer(storageContainer.inventory))
                         // Remove the item if it wasn't added successfully to avoid potential entities leak.
@@ -2254,8 +2301,8 @@ namespace Oxide.Plugins
             UnityEngine.Object.DestroyImmediate(storageContainer.GetComponent<DestroyOnGroundMissing>());
             UnityEngine.Object.DestroyImmediate(storageContainer.GetComponent<GroundWatch>());
 
-           // Disable networking and saving.
-           storageContainer.limitNetworking = true;
+            // Disable networking and saving.
+            storageContainer.limitNetworking = true;
             storageContainer.EnableSaving(false);
             // Spawn the storage container.
             storageContainer.Spawn();
@@ -2266,7 +2313,7 @@ namespace Oxide.Plugins
         #endregion Loot Editor
 
         #region Draw Traps
-      
+
         private void DrawTraps(BasePlayer player, int drawDuration)
         {
             drawDuration = drawDuration == 0 ? 30 : drawDuration;
@@ -2290,7 +2337,7 @@ namespace Oxide.Plugins
 
                     Draw.Arrow(player, drawDuration, ParseColor("#BDBDBD", Color.white), stashPosition, sleepingBagPosition, 0.50f);
                     Draw.Arrow(player, drawDuration, ParseColor("#BDBDBD", Color.white), sleepingBagPosition, stashPosition, 0.50f);
-                }              
+                }
             }
         }
 
@@ -2322,15 +2369,7 @@ namespace Oxide.Plugins
 
         #region Helper Functions
 
-        /// <summary>
-        /// Checks if a plugin is present and loaded.
-        /// </summary>
-        /// <param name="plugin"> The plugin to check. </param>
-        /// <returns> True if the plugin is loaded, false otherwise. </returns>
-        private bool PluginIsLoaded(Plugin plugin)
-        {
-            return plugin != null && plugin.IsLoaded ? true : false;
-        }
+        #region Stash Related
 
         /// <summary>
         /// Searches the map for an entity by its id.
@@ -2341,16 +2380,6 @@ namespace Oxide.Plugins
         {
             BaseEntity entity = BaseNetworkable.serverEntities.Find(entityId) as BaseEntity;
             return !entity.IsValid() || entity.IsDestroyed ? null : entity;
-        }
-
-        /// <summary>
-        /// Finds a player by their unique player id and returns the BasePlayer object.
-        /// </summary>
-        /// <param name="playerId"> The  id of the player to find. </param>
-        /// <returns> The BasePlayer object of the player with the specified id, or null if not found. </returns>
-        private BasePlayer FindPlayerById(ulong playerId)
-        {
-            return RelationshipManager.FindByID(playerId) ?? null;
         }
 
         /// <summary>
@@ -2372,6 +2401,29 @@ namespace Oxide.Plugins
         private bool PlayerIsStashOwner(StashContainer stash, BasePlayer player)
         {
             return stash?.OwnerID > 0 && player.userID == stash.OwnerID ? true : false;
+        }
+
+        /// <summary>
+        /// Converts a Vector3 position to its corresponding grid coordinates.
+        /// </summary>
+        /// <param name="position"> The Vector3 position to convert to grid coordinates. </param>
+        /// <returns> The grid coordinates of the specified position. </returns>
+        private string GetGrid(Vector3 position)
+        {
+            return PhoneController.PositionToGridCoord(position);
+        }
+
+        #endregion Stash Related
+
+        #region Player Related
+        /// <summary>
+        /// Finds a player by their unique player id and returns the BasePlayer object.
+        /// </summary>
+        /// <param name="playerId"> The  id of the player to find. </param>
+        /// <returns> The BasePlayer object of the player with the specified id, or null if not found. </returns>
+        private BasePlayer FindPlayerById(ulong playerId)
+        {
+            return RelationshipManager.FindByID(playerId) ?? null;
         }
 
         /// <summary>
@@ -2419,37 +2471,9 @@ namespace Oxide.Plugins
             teammates.AddRange(team.members);
         }
 
-        /// <summary>
-        /// Converts a Vector3 position to its corresponding grid coordinates.
-        /// </summary>
-        /// <param name="position"> The Vector3 position to convert to grid coordinates. </param>
-        /// <returns> The grid coordinates of the specified position. </returns>
-        private string GetGrid(Vector3 position)
-        {
-            return PhoneController.PositionToGridCoord(position);
-        }
+        #endregion Player Related
 
-        /// <summary>
-        /// Determines whether a chance with the given probability has succeeded.
-        /// </summary>
-        /// <param name="chance"> The probability of the chance. </param>
-        /// <returns> True if the chance has succeeded, or false if it has failed. </returns>
-        private bool ChanceSucceeded(int chance)
-        {
-            return Random.Range(0, 100) < chance ? true : false;
-        }
-
-        /// <summary>
-        /// Attempts to parse a color from a given hexadecimal string and returns it. If parsing fails, returns the default color provided.
-        /// </summary>
-        /// <param name="hexadecimalColor"> The hexadecimal string representation of the color to parse. </param>
-        /// <param name="defaultColor"> The default color to return in case of parsing failure. </param>
-        /// <returns> The parsed color or the default color if parsing fails. </returns>
-        private Color ParseColor(string hexadecimalColor, Color defaultColor)
-        {
-            Color color;
-            return ColorUtility.TryParseHtmlString(hexadecimalColor, out color) ? color : defaultColor;
-        }
+        #region Webhook Related
 
         /// <summary>
         /// Formats the specified player's name and Steam profile link.
@@ -2547,7 +2571,41 @@ namespace Oxide.Plugins
             return $"{daysConnected} day{(daysConnected > 1 ? "s" : "")} and {hoursConnected % 24} hour{((hoursConnected % 24) > 1 ? "s" : "")}";
         }
 
-        #endregion
+        #endregion Webhook Related
+
+        /// <summary>
+        /// Checks if a plugin is present and loaded.
+        /// </summary>
+        /// <param name="plugin"> The plugin to check. </param>
+        /// <returns> True if the plugin is loaded, false otherwise. </returns>
+        private bool PluginIsLoaded(Plugin plugin)
+        {
+            return plugin != null && plugin.IsLoaded ? true : false;
+        }
+
+        /// <summary>
+        /// Determines whether a chance with the given probability has succeeded.
+        /// </summary>
+        /// <param name="chance"> The probability of the chance. </param>
+        /// <returns> True if the chance has succeeded, or false if it has failed. </returns>
+        private bool ChanceSucceeded(int chance)
+        {
+            return Random.Range(0, 100) < chance ? true : false;
+        }
+
+        /// <summary>
+        /// Attempts to parse a color from a given hexadecimal string and returns it. If parsing fails, returns the default color provided.
+        /// </summary>
+        /// <param name="hexadecimalColor"> The hexadecimal string representation of the color to parse. </param>
+        /// <param name="defaultColor"> The default color to return in case of parsing failure. </param>
+        /// <returns> The parsed color or the default color if parsing fails. </returns>
+        private Color ParseColor(string hexadecimalColor, Color defaultColor)
+        {
+            Color color;
+            return ColorUtility.TryParseHtmlString(hexadecimalColor, out color) ? color : defaultColor;
+        }
+
+        #endregion Helper Functions
 
         #region Permissions
 
@@ -2559,7 +2617,7 @@ namespace Oxide.Plugins
             // Permission required to use admin commands.
             public const string ADMIN = "automatedstashtraps.admin";
             public const string IGNORE = "automatedstashtraps.ignore";
-            
+
             /// <summary>
             /// Registers permissions used by the plugin.
             /// </summary>
@@ -2579,7 +2637,7 @@ namespace Oxide.Plugins
             {
                 if (instance.permission.UserHasPermission(player.UserIDString, permissionName))
                     return true;
-                
+
                 // Lang: no permission
                 return false;
             }
