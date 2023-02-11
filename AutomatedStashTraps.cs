@@ -1,5 +1,4 @@
 using Facepunch;
-using Network;
 using Newtonsoft.Json;
 using Oxide.Core;
 using Oxide.Core.Configuration;
@@ -20,7 +19,7 @@ using Random = UnityEngine.Random;
 
 namespace Oxide.Plugins
 {
-    [Info("Automated Stash Traps", "Dana", "1.3.0")]
+    [Info("Automated Stash Traps", "Dana", "1.4.0")]
     [Description("Spawns fully automated stash traps across the map to catch ESP cheaters.")]
     public class AutomatedStashTraps : RustPlugin
     {
@@ -29,27 +28,27 @@ namespace Oxide.Plugins
         [PluginReference]
         private readonly Plugin Clans;
 
-        private static AutomatedStashTraps instance;
-        private static Configuration config;
-        private static Data data;
+        private static AutomatedStashTraps _instance;
+        private static Configuration _config;
+        private static Data _data;
 
-        private SpawnPointManager spawnPointManager;
-        private DiscordWebhook webhook;
-        private SkinManager skinManager;
+        private SpawnPointManager _spawnPointManager;
+        private DiscordWebhook _webhook;
+        private SkinManager _skinManager;
 
         // Coroutine reference for spawning automated traps.
-        private Coroutine spawnCoroutine;
-        private Timer reportScheduler;
+        private Coroutine _spawnCoroutine;
 
         // List of players who are manually deploying traps.
-        private List<BasePlayer> manualTrapDeployers = new List<BasePlayer>();
+        private List<BasePlayer> _manualTrapDeployers = new List<BasePlayer>();
         // Set of player-owned stashes that have been revealed.
-        private HashSet<uint> revealedOwnedStashes = new HashSet<uint>();
+        private HashSet<uint> _revealedOwnedStashes = new HashSet<uint>();
         // Dictionary of players who are currently editing the stash loot table.
-        private Dictionary<BasePlayer, StorageContainer> activeLootEditors = new Dictionary<BasePlayer, StorageContainer>();
+        private Dictionary<BasePlayer, StorageContainer> _activeLootEditors = new Dictionary<BasePlayer, StorageContainer>();
 
-        private Queue<DiscordWebhook.Message> queuedDiscordReports = new Queue<DiscordWebhook.Message>();
-
+        private Timer _reportScheduler;
+        private Queue<DiscordWebhook.Message> _queuedDiscordReports = new Queue<DiscordWebhook.Message>();
+        
         // Prefab paths. 
         private const string BLUEPRINT_TEMPLATE = "blueprintbase";
         private const string STASH_PREFAB = "assets/prefabs/deployable/small stash/small_stash_deployed.prefab";
@@ -57,7 +56,7 @@ namespace Oxide.Plugins
         private const string SLEEPING_BAG_PREFAB = "assets/prefabs/deployable/sleeping bag/sleepingbag_leather_deployed.prefab";
 
         // Last known position of a revealed stash.
-        private Vector3 lastRevealedStashPosition;
+        private Vector3 _lastRevealedStashPosition;
 
         #endregion Fields
 
@@ -79,6 +78,9 @@ namespace Oxide.Plugins
 
             [JsonProperty(PropertyName = "Moderation")]
             public ModerationOptions Moderation { get; set; }
+
+            [JsonProperty(PropertyName = "Notification")]
+            public NotificationOptions Notification { get; set; }
 
             [JsonProperty(PropertyName = "Discord")]
             public DiscordOptions Discord { get; set; }
@@ -122,6 +124,9 @@ namespace Oxide.Plugins
             [JsonProperty(PropertyName = "Spawn Along")]
             public bool SpawnAlong { get; set; }
 
+            [JsonProperty(PropertyName = "Spawn Proximity To Stash")]
+            public float SpawnProximityToStash { get; set; }
+
             [JsonProperty(PropertyName = "Spawn Chance")]
             public int SpawnChance { get; set; }
 
@@ -157,6 +162,15 @@ namespace Oxide.Plugins
 
             [JsonProperty(PropertyName = "Ban Reason")]
             public string BanReason { get; set; }
+        }
+
+        private class NotificationOptions
+        {
+            [JsonProperty(PropertyName = "Prefix")]
+            public string Prefix { get; set; }
+
+            [JsonProperty(PropertyName = "Enable Console Report")]
+            public bool EnableConsoleReport { get; set; }
         }
 
         private class DiscordOptions
@@ -267,7 +281,7 @@ namespace Oxide.Plugins
                     if (lookupResult != null)
                         itemDefinition = lookupResult;
                     else
-                        return null; // Lang: Invalid item short name in config
+                        return null;
 
                     itemIsValidated = true;
                 }
@@ -325,6 +339,7 @@ namespace Oxide.Plugins
                     DummySleepingBag = new DummySleepingBagOptions
                     {
                         SpawnAlong = true,
+                        SpawnProximityToStash = 0.90f,
                         SpawnChance = 50,
                         RandomizedSkinChance = 40,
                         RandomizedNiceNameChance = 60
@@ -344,6 +359,12 @@ namespace Oxide.Plugins
                     ViolationsTolerance = 3,
                     BanDelaySeconds = 60,
                     BanReason = "Cheat Detected!"
+                },
+
+                Notification = new NotificationOptions
+                {
+                    Prefix = "<color=#F2C94C>Automated Stash Trap</color>:",
+                    EnableConsoleReport = true
                 },
 
                 Discord = new DiscordOptions
@@ -489,9 +510,9 @@ namespace Oxide.Plugins
         protected override void LoadConfig()
         {
             base.LoadConfig();
-            config = Config.ReadObject<Configuration>();
+            _config = Config.ReadObject<Configuration>();
 
-            if (string.Compare(config.Version, Version.ToString()) < 0)
+            if (string.Compare(_config.Version, Version.ToString()) < 0)
                 UpdateConfig();
 
             ValidateConfigValues();
@@ -500,12 +521,12 @@ namespace Oxide.Plugins
 
         protected override void LoadDefaultConfig()
         {
-            config = GetDefaultConfig();
+            _config = GetDefaultConfig();
         }
 
         protected override void SaveConfig()
         {
-            Config.WriteObject(config, true);
+            Config.WriteObject(_config, true);
         }
 
         private void UpdateConfig()
@@ -514,69 +535,81 @@ namespace Oxide.Plugins
 
             Configuration defaultConfig = GetDefaultConfig();
 
-            if (string.Compare(config.Version, "1.0.0") < 0)
-                config = defaultConfig;
+            if (string.Compare(_config.Version, "1.0.0") < 0)
+                _config = defaultConfig;
 
-            if (string.Compare(config.Version, "1.1.0") < 0)
+            if (string.Compare(_config.Version, "1.1.0") < 0)
             {
-                config.Violation = defaultConfig.Violation;
-                config.Moderation = defaultConfig.Moderation;
+                _config.Violation = defaultConfig.Violation;
+                _config.Moderation = defaultConfig.Moderation;
             }
 
-            if (string.Compare(config.Version, "1.3.0") < 0)
+            if (string.Compare(_config.Version, "1.3.0") < 0)
             {
-                config.Discord.ReportInterval = defaultConfig.Discord.ReportInterval;
+                _config.Discord.ReportInterval = defaultConfig.Discord.ReportInterval;
             }
 
-            PrintWarning("Configuration update complete! Updated from version " + config.Version + " to " + Version.ToString());
-            config.Version = Version.ToString();
+            if (string.Compare(_config.Version, "1.4.0") < 0)
+            {
+                _config.Notification = defaultConfig.Notification;
+                _config.AutomatedTrap.DummySleepingBag.SpawnProximityToStash = defaultConfig.AutomatedTrap.DummySleepingBag.SpawnProximityToStash;
+            }
+
+            PrintWarning("Configuration update complete! Updated from version " + _config.Version + " to " + Version.ToString());
+            _config.Version = Version.ToString();
         }
 
         private void ValidateConfigValues()
         {
             PrintWarning("Validating configuration values...");
 
-            if (config.AutomatedTrap.DestroyRevealedTrapAfterMinutes <= 0)
+            if (_config.AutomatedTrap.DestroyRevealedTrapAfterMinutes <= 0)
             {
                 PrintError("Invalid trap removal time value. To avoid potential entity leaks, this value must be greater than 0. Default value of 5 will be applied.");
-                config.AutomatedTrap.DestroyRevealedTrapAfterMinutes = 5;
+                _config.AutomatedTrap.DestroyRevealedTrapAfterMinutes = 5;
             }
 
-            if (config.Discord.PostIntoDiscord)
+            if (_config.AutomatedTrap.DummySleepingBag.SpawnProximityToStash <= 0.0f || _config.AutomatedTrap.DummySleepingBag.SpawnProximityToStash > 1.0f)
             {
-                if (string.IsNullOrWhiteSpace(config.Discord.WebhookUrl) || !config.Discord.WebhookUrl.StartsWith("https://discord.com/api/webhooks/"))
+                PrintError("Invalid sleeping bag spawn proximity. The value must be greater than 0.0 and less than or equal to 1.0. Default value of 0.9 will be applied.");
+                _config.AutomatedTrap.DummySleepingBag.SpawnProximityToStash = 0.90f;
+            }
+
+            if (_config.Discord.PostIntoDiscord)
+            {
+                if (string.IsNullOrWhiteSpace(_config.Discord.WebhookUrl) || !_config.Discord.WebhookUrl.StartsWith("https://discord.com/api/webhooks/"))
                 {
                     PrintError("Invalid webhook url provided. Please provide a valid webhook url to post into Discord.");
-                    config.Discord.PostIntoDiscord = false;
+                    _config.Discord.PostIntoDiscord = false;
                 }
 
-                if (string.IsNullOrWhiteSpace(config.Discord.EmbedColor) || !config.Discord.EmbedColor.StartsWith("#"))
+                if (string.IsNullOrWhiteSpace(_config.Discord.EmbedColor) || !_config.Discord.EmbedColor.StartsWith("#"))
                 {
                     PrintError("Invalid color provided. The color must be a valid hex color code. Default color of #FFFFFF will be applied.");
-                    config.Discord.EmbedColor = "#FFFFFF";
+                    _config.Discord.EmbedColor = "#FFFFFF";
                 }
             }
 
-            if (config.StashLoot.MinimumLootSpawnSlots < 1)
+            if (_config.StashLoot.MinimumLootSpawnSlots < 1)
             {
                 PrintError("Invalid minimum loot spawn slots value. Default value of 1 will be applied.");
-                config.StashLoot.MinimumLootSpawnSlots = 1;
+                _config.StashLoot.MinimumLootSpawnSlots = 1;
             }
 
-            if (config.StashLoot.MaximumLootSpawnSlots > 6)
+            if (_config.StashLoot.MaximumLootSpawnSlots > 6)
             {
                 PrintError("Invalid maximum loot spawn slots value. Default value of 6 will be applied.");
-                config.StashLoot.MaximumLootSpawnSlots = 6;
+                _config.StashLoot.MaximumLootSpawnSlots = 6;
             }
 
-            List<ItemInfo> invalidItems = config.StashLoot.LootTable.Where(item => item.GetItemDefinition() == null).ToList();
+            List<ItemInfo> invalidItems = _config.StashLoot.LootTable.Where(item => item.GetItemDefinition() == null).ToList();
             foreach (ItemInfo invalidItem in invalidItems)
             {
-                config.StashLoot.LootTable.Remove(invalidItem);
+                _config.StashLoot.LootTable.Remove(invalidItem);
                 PrintError("Invalid item '" + invalidItem.ShortName + "' removed from the loot table.");
             }
 
-            foreach (ItemInfo item in config.StashLoot.LootTable)
+            foreach (ItemInfo item in _config.StashLoot.LootTable)
             {
                 if (item.MinimumSpawnAmount <= 0)
                 {
@@ -608,12 +641,12 @@ namespace Oxide.Plugins
 
             public static Data Load()
             {
-                return Interface.Oxide.DataFileSystem.ReadObject<Data>(instance.Name) ?? new Data();
+                return Interface.Oxide.DataFileSystem.ReadObject<Data>(_instance.Name) ?? new Data();
             }
 
             public Data Save()
             {
-                Interface.Oxide.DataFileSystem.WriteObject(instance.Name, this);
+                Interface.Oxide.DataFileSystem.WriteObject(_instance.Name, this);
                 return this;
             }
 
@@ -721,12 +754,12 @@ namespace Oxide.Plugins
         /// </summary>
         private void Init()
         {
-            instance = this;
-            skinManager = new SkinManager();
-            webhook = new DiscordWebhook();
-            spawnPointManager = new SpawnPointManager();
+            _instance = this;
+            _skinManager = new SkinManager();
+            _webhook = new DiscordWebhook();
+            _spawnPointManager = new SpawnPointManager();
 
-            data = Data.Load();
+            _data = Data.Load();
             Permission.Register();
         }
 
@@ -745,16 +778,16 @@ namespace Oxide.Plugins
         {
             CleanupTraps();
             StopSpawnCoroutine();
-            spawnPointManager.ClearAvailableSpawnPoints();
+            _spawnPointManager.ClearAvailableSpawnPoints();
 
-            lastRevealedStashPosition = Vector3.zero;
+            _lastRevealedStashPosition = Vector3.zero;
 
-            if (reportScheduler != null)
-                reportScheduler.Destroy();
+            if (_reportScheduler != null)
+                _reportScheduler.Destroy();
 
-            instance = null;
-            config = null;
-            data = null;
+            _instance = null;
+            _config = null;
+            _data = null;
         }
 
         /// <summary>
@@ -762,7 +795,7 @@ namespace Oxide.Plugins
         /// </summary>
         private void OnNewSave()
         {
-            if (config.Violation.ResetOnWipe)
+            if (_config.Violation.ResetOnWipe)
                 Data.Clear();
         }
 
@@ -784,14 +817,18 @@ namespace Oxide.Plugins
                 return;
 
             // Don't proceed if the deploying player is not on the list of players allowed to create manual traps.
-            if (!manualTrapDeployers.Contains(deployingPlayer))
+            if (!_manualTrapDeployers.Contains(deployingPlayer))
                 return;
 
             // Initialize the stash by populating it with loot and hiding it underground.
             PopulateLoot(stash);
             stash.SetHidden(true);
+            _manualTrapDeployers.Remove(deployingPlayer);
 
-            manualTrapDeployers.Remove(deployingPlayer);
+            ReplyToPlayer(deployingPlayer, GetLang(Lang.TRAP_SETUP, deployingPlayer.UserIDString));
+
+            Draw.Sphere(deployingPlayer, 60f, ParseColor("#BDBDBD", Color.white), stash.transform.position, 0.5f);
+            Draw.Text(deployingPlayer, 60f, ParseColor("#F2C94C", Color.white), stash.transform.position + new Vector3(0, 0.7f, 0), $"<size=30>{stash.net.ID}</size>");
         }
 
         /// <summary>
@@ -823,7 +860,7 @@ namespace Oxide.Plugins
             if (Permission.Verify(player, Permission.IGNORE))
                 return;
 
-            OnStashTriggered(stash, player, stashWasDestroyed: false);
+            OnStashTriggered(stash, player, false);
         }
 
         /// <summary>
@@ -837,7 +874,7 @@ namespace Oxide.Plugins
             if (PlayerIsStashOwner(stash, player))
                 return;
             else if (!PlayerExistsInOwnerTeam(stash.OwnerID, player))
-                revealedOwnedStashes.Add(stash.net.ID);
+                _revealedOwnedStashes.Add(stash.net.ID);
         }
 
         #endregion Oxide Hooks
@@ -850,7 +887,7 @@ namespace Oxide.Plugins
         private void StartSpawnCoroutine()
         {
             // Hold a reference to the coroutine that is currently running.
-            spawnCoroutine = ServerMgr.Instance.StartCoroutine(SpawnTraps());
+            _spawnCoroutine = ServerMgr.Instance.StartCoroutine(SpawnTraps());
         }
 
         /// <summary>
@@ -859,12 +896,12 @@ namespace Oxide.Plugins
         private void StopSpawnCoroutine()
         {
             // Proceed if the coroutine is currently running.
-            if (!spawnCoroutine.IsUnityNull())
+            if (!_spawnCoroutine.IsUnityNull())
             {
                 // Stop the execution of the coroutine.
-                ServerMgr.Instance.StopCoroutine(spawnCoroutine);
+                ServerMgr.Instance.StopCoroutine(_spawnCoroutine);
                 // Release the coroutine reference to allow it to be garbage collected.
-                spawnCoroutine = null;
+                _spawnCoroutine = null;
             }
         }
 
@@ -881,7 +918,7 @@ namespace Oxide.Plugins
             // Keep track of the number of traps that have been spawned.
             int spawnedTraps = 0;
             // Calculate the number of traps that need to be spawned.
-            int trapsToSpawn = config.AutomatedTrap.MaximumTrapsToSpawn - data.AutomatedTraps.Where(trapData => trapData.Value.DummyStash.Hidden).Count();
+            int trapsToSpawn = _config.AutomatedTrap.MaximumTrapsToSpawn - _data.AutomatedTraps.Where(trapData => trapData.Value.DummyStash.Hidden).Count();
             // If there are no traps to spawn, exit early.
             if (trapsToSpawn <= 0)
                 yield break;
@@ -890,17 +927,17 @@ namespace Oxide.Plugins
             WaitForSeconds waitDuration = ConVar.FPS.limit > 80 ? CoroutineEx.waitForSeconds(0.01f) : null;
 
             // If there are not enough available spawn points, generate more until there are enough.
-            if (spawnPointManager.AvailableSpawnPointsCount < trapsToSpawn)
+            if (_spawnPointManager.AvailableSpawnPointsCount < trapsToSpawn)
             {
-                int spawnPointsToGenerate = trapsToSpawn - spawnPointManager.AvailableSpawnPointsCount;
-                yield return ServerMgr.Instance.StartCoroutine(spawnPointManager.GenerateSpawnPoints(spawnPointsToGenerate));
+                int spawnPointsToGenerate = trapsToSpawn - _spawnPointManager.AvailableSpawnPointsCount;
+                yield return ServerMgr.Instance.StartCoroutine(_spawnPointManager.GenerateSpawnPoints(spawnPointsToGenerate));
             }
 
             // Begin spawning traps until the required number has been reached.
             for (int i = 0; i < trapsToSpawn; i++)
             {
                 // Get a random spawn point.
-                Tuple<Vector3, Quaternion> spawnPoint = spawnPointManager.GetRandomSpawnPoint();
+                Tuple<Vector3, Quaternion> spawnPoint = _spawnPointManager.GetRandomSpawnPoint();
 
                 // Create a stash container entity at the spawn point and populate it with loot.
                 StashContainer stash = CreateStashEntity(STASH_PREFAB, spawnPoint.Item1, spawnPoint.Item2);
@@ -908,14 +945,14 @@ namespace Oxide.Plugins
 
                 // Initialize a sleeping bag entity, which may be spawned if the configuration allows it.
                 SleepingBag sleepingBag = null;
-                if (config.AutomatedTrap.DummySleepingBag.SpawnAlong && ChanceSucceeded(config.AutomatedTrap.DummySleepingBag.SpawnChance))
+                if (_config.AutomatedTrap.DummySleepingBag.SpawnAlong && ChanceSucceeded(_config.AutomatedTrap.DummySleepingBag.SpawnChance))
                 {
                     // Find a nearby spawn point and create a sleeping bag at it.
-                    Tuple<Vector3, Quaternion> nearbySpawnPoint = spawnPointManager.FindChildSpawnPoint(spawnPoint.Item1);
+                    Tuple<Vector3, Quaternion> nearbySpawnPoint = _spawnPointManager.FindChildSpawnPoint(spawnPoint.Item1);
                     sleepingBag = CreateSleepingBagEntity(SLEEPING_BAG_PREFAB, nearbySpawnPoint.Item1, nearbySpawnPoint.Item2);
                 }
 
-                data.CreateTrapData(stash, sleepingBag);
+                _data.CreateTrapData(stash, sleepingBag);
                 spawnedTraps++;
 
                 // Wait for a set duration to prevent overloading the server with spawning actions.
@@ -924,9 +961,9 @@ namespace Oxide.Plugins
 
             // Output the total number of spawned traps to the console.
             Puts("Spawned " + spawnedTraps + " traps.");
-            // Save the trap data and set the coroutine to null to be garbage collected.
-            data.Save();
-            spawnCoroutine = null;
+            // Save the trap _data and set the coroutine to null to be garbage collected.
+            _data.Save();
+            _spawnCoroutine = null;
         }
 
         /// <summary>
@@ -986,12 +1023,15 @@ namespace Oxide.Plugins
                 return null;
             }
 
+            UnityEngine.Object.DestroyImmediate(sleepingBag.GetComponent<DestroyOnGroundMissing>());
+            UnityEngine.Object.DestroyImmediate(sleepingBag.GetComponent<GroundWatch>());
+
             // Set a random skin for the sleeping bag.
-            if (config.AutomatedTrap.DummySleepingBag.RandomizedSkinChance > 0 && ChanceSucceeded(config.AutomatedTrap.DummySleepingBag.RandomizedSkinChance))
-                sleepingBag.skinID = skinManager.GetSkinsForItem(ItemManager.FindItemDefinition("sleepingbag")).GetRandom();
+            if (_config.AutomatedTrap.DummySleepingBag.RandomizedSkinChance > 0 && ChanceSucceeded(_config.AutomatedTrap.DummySleepingBag.RandomizedSkinChance))
+                sleepingBag.skinID = _skinManager.GetSkinsForItem(ItemManager.FindItemDefinition("sleepingbag")).GetRandom();
 
             // Set a random nice name for the sleeping bag.
-            if (config.AutomatedTrap.DummySleepingBag.RandomizedNiceNameChance > 0 && ChanceSucceeded(config.AutomatedTrap.DummySleepingBag.RandomizedNiceNameChance))
+            if (_config.AutomatedTrap.DummySleepingBag.RandomizedNiceNameChance > 0 && ChanceSucceeded(_config.AutomatedTrap.DummySleepingBag.RandomizedNiceNameChance))
                 sleepingBag.niceName = RandomUsernames.Get(Random.Range(0, 5000));
 
             // Spawn the sleeping bag.
@@ -1001,8 +1041,8 @@ namespace Oxide.Plugins
 
         private void PopulateLoot(StashContainer stash)
         {
-            List<ItemInfo> itemsToSpawn = new List<ItemInfo>(config.StashLoot.LootTable);
-            int lootSpawnSlots = Random.Range(config.StashLoot.MinimumLootSpawnSlots, config.StashLoot.MaximumLootSpawnSlots);
+            List<ItemInfo> itemsToSpawn = new List<ItemInfo>(_config.StashLoot.LootTable);
+            int lootSpawnSlots = Random.Range(_config.StashLoot.MinimumLootSpawnSlots, _config.StashLoot.MaximumLootSpawnSlots);
 
             if (lootSpawnSlots > itemsToSpawn.Count)
                 lootSpawnSlots = itemsToSpawn.Count;
@@ -1018,7 +1058,7 @@ namespace Oxide.Plugins
                 if (itemDefinition == null)
                     continue;
 
-                if (config.StashLoot.SpawnChanceAsBlueprint > 0 && randomItem.CanBeResearched() && ChanceSucceeded(config.StashLoot.SpawnChanceAsBlueprint))
+                if (_config.StashLoot.SpawnChanceAsBlueprint > 0 && randomItem.CanBeResearched() && ChanceSucceeded(_config.StashLoot.SpawnChanceAsBlueprint))
                 {
                     item = ItemManager.CreateByName(BLUEPRINT_TEMPLATE);
                     item.blueprintTarget = itemDefinition.itemid;
@@ -1028,12 +1068,12 @@ namespace Oxide.Plugins
                     int spawnAmount = Random.Range(randomItem.MinimumSpawnAmount, randomItem.MaximumSpawnAmount + 1);
                     ulong skin = 0;
 
-                    if (config.StashLoot.SpawnChanceWithSkin > 0 && randomItem.CanBeSkinned() && ChanceSucceeded(config.StashLoot.SpawnChanceWithSkin))
-                        skin = instance.skinManager.GetSkinsForItem(itemDefinition).GetRandom();
+                    if (_config.StashLoot.SpawnChanceWithSkin > 0 && randomItem.CanBeSkinned() && ChanceSucceeded(_config.StashLoot.SpawnChanceWithSkin))
+                        skin = _instance._skinManager.GetSkinsForItem(itemDefinition).GetRandom();
 
                     item = ItemManager.CreateByName(randomItem.ShortName, spawnAmount, skin);
 
-                    if (config.StashLoot.SpawnChanceAsDamaged > 0 && randomItem.CanBeRepaired())
+                    if (_config.StashLoot.SpawnChanceAsDamaged > 0 && randomItem.CanBeRepaired())
                         RandomizeItemCondition(item);
                 }
 
@@ -1050,18 +1090,18 @@ namespace Oxide.Plugins
 
         private void RandomizeItemCondition(Item item)
         {
-            if (ChanceSucceeded(config.StashLoot.SpawnChanceAsDamaged))
+            if (ChanceSucceeded(_config.StashLoot.SpawnChanceAsDamaged))
             {
-                float conditionLoss = Random.Range(config.StashLoot.MinimumConditionLoss, config.StashLoot.MaximumConditionLoss);
+                float conditionLoss = Random.Range(_config.StashLoot.MinimumConditionLoss, _config.StashLoot.MaximumConditionLoss);
                 item.conditionNormalized = conditionLoss / 100;
             }
 
-            if (ChanceSucceeded(config.StashLoot.SpawnChanceAsRepaired))
+            if (ChanceSucceeded(_config.StashLoot.SpawnChanceAsRepaired))
             {
                 float repairAmount = Random.Range(1f, 0.8f);
                 item.DoRepair(repairAmount);
             }
-            else if (ChanceSucceeded(config.StashLoot.SpawnChanceAsBroken))
+            else if (ChanceSucceeded(_config.StashLoot.SpawnChanceAsBroken))
             {
                 item.condition = 0f;
             }
@@ -1080,11 +1120,11 @@ namespace Oxide.Plugins
             // Keep track of the number of removed traps.
             int removedTraps = 0;
             // Process all traps one by one.
-            foreach (uint trapId in data.AutomatedTraps.Keys)
+            foreach (uint trapId in _data.AutomatedTraps.Keys)
             {
-                // Retrieve the data for the current trap.
-                AutomatedTrapData trap = data.GetTrapData(trapId);
-                // Skip the trap if its data cannot be found and move on to the next one.
+                // Retrieve the _data for the current trap.
+                AutomatedTrapData trap = _data.GetTrapData(trapId);
+                // Skip the trap if its _data cannot be found and move on to the next one.
                 if (trap == null)
                     continue;
 
@@ -1104,8 +1144,8 @@ namespace Oxide.Plugins
             }
 
             Puts("Cleaned up " + removedTraps + " traps.");
-            data.AutomatedTraps.Clear();
-            data.Save();
+            _data.AutomatedTraps.Clear();
+            _data.Save();
         }
 
         /// <summary>
@@ -1115,7 +1155,7 @@ namespace Oxide.Plugins
         private void TryDestroyAndReplaceTrap(AutomatedTrapData trap)
         {
             // Schedule the trap for destruction after the specified time interval.
-            timer.Once(config.AutomatedTrap.DestroyRevealedTrapAfterMinutes * 60, () =>
+            timer.Once(_config.AutomatedTrap.DestroyRevealedTrapAfterMinutes * 60, () =>
             {
                 // Find the dummy stash associated with the trap and destroy it if found.
                 StashContainer stash = FindEntityById(trap.DummyStash.Id) as StashContainer;
@@ -1129,9 +1169,9 @@ namespace Oxide.Plugins
                 }
 
                 // Remove the trap from the AutomatedTraps list.
-                data.AutomatedTraps.Remove(trap.DummyStash.Id);
-                // If specified in the config, spawn a new automated trap after the old one has been destroyed.
-                if (config.AutomatedTrap.ReplaceRevealedTrap)
+                _data.AutomatedTraps.Remove(trap.DummyStash.Id);
+                // If specified in the _config, spawn a new automated trap after the old one has been destroyed.
+                if (_config.AutomatedTrap.ReplaceRevealedTrap)
                     StartSpawnCoroutine();
             });
         }
@@ -1140,58 +1180,93 @@ namespace Oxide.Plugins
 
         #region Trap Trigger
 
-        private void OnStashTriggered(StashContainer stash, BasePlayer player, bool stashWasDestroyed = false)
+        private void OnStashTriggered(StashContainer stash, BasePlayer player, bool stashWasDestroyed)
         {
-            AutomatedTrapData trap = data.GetTrapData(stash.net.ID);
+            AutomatedTrapData trap = _data.GetTrapData(stash.net.ID);
             if (trap != null)
             {
                 if (!trap.DummyStash.Hidden)
                     return;
 
-                data.UpdateTrapData(trap);
+                _data.UpdateTrapData(trap);
                 TryDestroyAndReplaceTrap(trap);
             }
 
             else if (StashIsOwned(stash))
             {
-                if (revealedOwnedStashes.Contains(stash.net.ID))
+                if (_revealedOwnedStashes.Contains(stash.net.ID))
                     return;
 
                 if (PlayerIsStashOwner(stash, player))
                     return;
 
-                if (config.Violation.CanTeammateIgnore && PlayerExistsInOwnerTeam(stash.OwnerID, player))
+                if (_config.Violation.CanTeammateIgnore && PlayerExistsInOwnerTeam(stash.OwnerID, player))
                     return;
 
-                if (config.Violation.CanClanmateIgnore && PlayerExistsInOwnerClan(stash.OwnerID, player))
+                if (_config.Violation.CanClanmateIgnore && PlayerExistsInOwnerClan(stash.OwnerID, player))
                     return;
 
                 if (!stashWasDestroyed)
-                    revealedOwnedStashes.Add(stash.net.ID);
+                    _revealedOwnedStashes.Add(stash.net.ID);
             }
 
-            lastRevealedStashPosition = stash.ServerPosition;
-            data.CreateOrUpdatePlayerData(player);
-            data.Save();
+            _lastRevealedStashPosition = stash.ServerPosition;
+            _data.CreateOrUpdatePlayerData(player);
+            _data.Save();
 
-            int Violations = data.GetPlayerRevealedTrapsCount(player);
-            if (config.Moderation.AutomaticBan && Violations >= config.Moderation.ViolationsTolerance)
+            int violations = _data.GetPlayerRevealedTrapsCount(player);
+            if (_config.Moderation.AutomaticBan && violations >= _config.Moderation.ViolationsTolerance)
                 IssueBan(player);
 
-            if (config.Discord.PostIntoDiscord)
+
+            if (_config.Notification.EnableConsoleReport)
+            {
+                string report = ConstructConsoleReport(stash, player);
+                Puts(report);
+            }
+
+            if (_config.Discord.PostIntoDiscord)
             {
                 DiscordWebhook.Message message = ConstructDiscordReport(stash, player, stashWasDestroyed);
-                queuedDiscordReports.Enqueue(message);
+                _queuedDiscordReports.Enqueue(message);
 
-                if (reportScheduler == null)
+                if (_reportScheduler == null)
                 {
-                    reportScheduler = timer.Once(config.Discord.ReportInterval, () =>
+                    _reportScheduler = timer.Once(_config.Discord.ReportInterval, () =>
                     {
                         PushQueuedDiscordReports();
-                        reportScheduler = null;
+                        _reportScheduler = null;
                     });
                 }
             }
+
+            ReplyToPlayer(player, GetLang(Lang.TRAP_REVEAL, player.UserIDString), player.displayName, GetGrid(stash.ServerPosition));
+            foreach (BasePlayer admin in BasePlayer.activePlayerList.Where(p => Permission.Verify(p)))
+            {
+                Draw.Sphere(admin, 60f, Color.black, _lastRevealedStashPosition, 0.5f);
+                Draw.Arrow(admin, 60f, Color.black, _lastRevealedStashPosition + new Vector3(0, 390f, 0), _lastRevealedStashPosition, 0.50f);
+                Draw.Text(admin, 60f, ParseColor("#F2C94C", Color.white), _lastRevealedStashPosition + new Vector3(0, 390.1f, 0), $"<size=25>{player.displayName}</size>");
+            }
+        }
+
+        private string ConstructConsoleReport(StashContainer stash, BasePlayer player)
+        {
+            StringBuilder reportBuilder = new StringBuilder();
+            reportBuilder.AppendLine("A cheater has been spotted");
+            reportBuilder.AppendLine("{");
+            reportBuilder.AppendLine("  Player: " + player.displayName);
+            reportBuilder.AppendLine("  Player Id: " + player.userID);
+            reportBuilder.AppendLine("  Stash Position: " + GetGrid(stash.ServerPosition));
+            reportBuilder.AppendLine("  Stash Type: " + (StashIsOwned(stash) ? "Player owned stash" : "Automated trap"));
+
+            if (StashIsOwned(stash))
+            {
+                reportBuilder.AppendLine("  Stash Owner: " + FormatPlayerName(FindPlayerById(stash.OwnerID)));
+                reportBuilder.AppendLine("  Stash Id: " + stash.net.ID);
+            }
+
+            reportBuilder.AppendLine("}");
+            return reportBuilder.ToString();
         }
 
         private void HandleDestroyedStash(StashContainer stash)
@@ -1213,7 +1288,7 @@ namespace Oxide.Plugins
                 if (Permission.Verify(buildingBlockOwner, Permission.IGNORE))
                     return;
 
-                OnStashTriggered(stash, buildingBlockOwner, stashWasDestroyed: true);
+                OnStashTriggered(stash, buildingBlockOwner, true);
             }
 
             // Free the memory used by the 'nearbyBuildingBlocks' list and release it back to the pool.
@@ -1222,11 +1297,11 @@ namespace Oxide.Plugins
 
         private void IssueBan(BasePlayer player)
         {
-            timer.Once(config.Moderation.BanDelaySeconds, () =>
+            timer.Once(_config.Moderation.BanDelaySeconds, () =>
             {
-                player.IPlayer.Ban(config.Moderation.BanReason);
-                data.RemovePlayerData(player);
-                data.Save();
+                player.IPlayer.Ban(_config.Moderation.BanReason);
+                _data.RemovePlayerData(player);
+                _data.Save();
             });
         }
 
@@ -1236,7 +1311,7 @@ namespace Oxide.Plugins
 
         private bool StashIsAutomatedTrap(StashContainer stash)
         {
-            AutomatedTrapData trap = data.GetTrapData(stash.net.ID);
+            AutomatedTrapData trap = _data.GetTrapData(stash.net.ID);
             if (trap != null)
                 return true;
 
@@ -1281,13 +1356,13 @@ namespace Oxide.Plugins
                 int failedAttempts = 0;
 
                 // Attempt to find valid spawn points up to the specified number of times.
-                for (int i = 0; i < config.SpawnPoint.MaximumAttemptsToFindSpawnPoints; i++)
+                for (int i = 0; i < _config.SpawnPoint.MaximumAttemptsToFindSpawnPoints; i++)
                 {
                     // Halt the generation of spawn points once the desired number is reached.
                     if (successfullyGenerated == spawnPointsToGenerate)
                     {
                         // Output the total number of generated spawn points to the console.
-                        instance.Puts("Generated " + AvailableSpawnPointsCount + " spawn points.");
+                        _instance.Puts("Generated " + AvailableSpawnPointsCount + " spawn points.");
                         yield break;
                     }
 
@@ -1316,7 +1391,7 @@ namespace Oxide.Plugins
                 }
 
                 // Output the total number of generated spawn points to the console.
-                instance.Puts("Generated " + AvailableSpawnPointsCount + " spawn points.");
+                _instance.Puts("Generated " + AvailableSpawnPointsCount + " spawn points.");
                 yield break;
             }
 
@@ -1351,8 +1426,7 @@ namespace Oxide.Plugins
             public Tuple<Vector3, Quaternion> FindChildSpawnPoint(Vector3 parentPosition)
             {
                 // Generate a random point within a certain distance from the given spawn point.
-                Vector2 randomPointInRange = ((Random.insideUnitCircle * 0.60f) + new Vector2(0.45f, 0.45f)) * config.SpawnPoint.SafeAreaRadius;
-
+                Vector2 randomPointInRange = Random.insideUnitCircle * _config.AutomatedTrap.DummySleepingBag.SpawnProximityToStash * _config.SpawnPoint.SafeAreaRadius;
                 // Shift the random point to be relative to the parent spawn point, and adjust its height to match the terrain height at that spawn point.
                 Vector3 childPosition = new Vector3(parentPosition.x + randomPointInRange.x, parentPosition.y, parentPosition.z + randomPointInRange.y);
                 childPosition.y = TerrainMeta.HeightMap.GetHeight(childPosition);
@@ -1421,7 +1495,7 @@ namespace Oxide.Plugins
             private bool PositionIsOnTerrain(Vector3 position)
             {
                 // Check if a sphere at the position intersects with the Terrain layer.
-                return Physics.CheckSphere(position, config.SpawnPoint.SafeAreaRadius, LayerMask.GetMask("Terrain"), QueryTriggerInteraction.Ignore);
+                return Physics.CheckSphere(position, _config.SpawnPoint.SafeAreaRadius, LayerMask.GetMask("Terrain"), QueryTriggerInteraction.Ignore);
             }
 
             /// <summary>
@@ -1432,7 +1506,7 @@ namespace Oxide.Plugins
             private bool PositionIsInRestrictedBuildingZone(Vector3 position)
             {
                 // Check if a sphere at the position intersects with the Prevent Building layer.
-                return Physics.CheckSphere(position, config.SpawnPoint.SafeAreaRadius, LayerMask.GetMask("Prevent Building"));
+                return Physics.CheckSphere(position, _config.SpawnPoint.SafeAreaRadius, LayerMask.GetMask("Prevent Building"));
             }
 
             /// <summary>
@@ -1487,7 +1561,7 @@ namespace Oxide.Plugins
             {
                 // Get a list of colliders in a sphere around the given position.
                 List<Collider> colliders = Pool.GetList<Collider>();
-                Vis.Colliders(position, config.SpawnPoint.SafeAreaRadius, colliders, LayerMask.GetMask("World"), QueryTriggerInteraction.Ignore);
+                Vis.Colliders(position, _config.SpawnPoint.SafeAreaRadius, colliders, LayerMask.GetMask("World"), QueryTriggerInteraction.Ignore);
 
                 // The result flag. Set to false by default.
                 bool result = false;
@@ -1521,7 +1595,7 @@ namespace Oxide.Plugins
             {
                 // Get a list of colliders in a sphere around the given position.
                 List<Collider> colliders = Pool.GetList<Collider>();
-                Vis.Colliders(position, config.SpawnPoint.SafeAreaRadius, colliders, LayerMask.GetMask("World"), QueryTriggerInteraction.Ignore);
+                Vis.Colliders(position, _config.SpawnPoint.SafeAreaRadius, colliders, LayerMask.GetMask("World"), QueryTriggerInteraction.Ignore);
 
                 // The result flag. Set to false by default.
                 bool result = false;
@@ -1554,7 +1628,7 @@ namespace Oxide.Plugins
             {
                 // Get a list of entities within a given radius around the given position.
                 List<BaseEntity> nearbyEntities = Pool.GetList<BaseEntity>();
-                Vis.Entities(position, config.SpawnPoint.EntityDetectionRadius, nearbyEntities, LayerMask.GetMask("Construction", "Deployable", "Deployed"), QueryTriggerInteraction.Ignore);
+                Vis.Entities(position, _config.SpawnPoint.EntityDetectionRadius, nearbyEntities, LayerMask.GetMask("Construction", "Deployable", "Deployed"), QueryTriggerInteraction.Ignore);
 
                 // Check if there are any entities in the list.
                 bool result = nearbyEntities.Count > 0;
@@ -1572,7 +1646,7 @@ namespace Oxide.Plugins
             {
                 // Get a list of players within a given radius around the given position.
                 List<BasePlayer> nearbyPlayers = Pool.GetList<BasePlayer>();
-                Vis.Entities(position, config.SpawnPoint.PlayerDetectionRadius, nearbyPlayers, LayerMask.GetMask("Player (Server)"), QueryTriggerInteraction.Ignore);
+                Vis.Entities(position, _config.SpawnPoint.PlayerDetectionRadius, nearbyPlayers, LayerMask.GetMask("Player (Server)"), QueryTriggerInteraction.Ignore);
 
                 // Result flag.
                 bool result = false;
@@ -1654,12 +1728,12 @@ namespace Oxide.Plugins
 
         private void PushQueuedDiscordReports()
         {
-            while (queuedDiscordReports.Count > 0)
+            while (_queuedDiscordReports.Count > 0)
             {
-                DiscordWebhook.Message message = queuedDiscordReports.Dequeue();
-                webhook.SendRequest(config.Discord.WebhookUrl, message);
+                DiscordWebhook.Message message = _queuedDiscordReports.Dequeue();
+                _webhook.SendRequest(_config.Discord.WebhookUrl, message);
 
-                if (queuedDiscordReports.Count > 0)
+                if (_queuedDiscordReports.Count > 0)
                 {
                     timer.Once(0.5f, () =>
                     {
@@ -1673,24 +1747,24 @@ namespace Oxide.Plugins
         private DiscordWebhook.Message ConstructDiscordReport(StashContainer stash, BasePlayer player, bool stashWasKilled)
         {
             DiscordWebhook.Message message = new DiscordWebhook.Message();
-            if (queuedDiscordReports.Count == 0)
-                message.Content = config.Discord.Message;
+            if (_queuedDiscordReports.Count == 0)
+                message.Content = _config.Discord.Message;
             else
                 message.Content = null;
 
             DiscordWebhook.Embed embed = new DiscordWebhook.Embed
             {
-                Color = config.Discord.GetColor(),
-                Title = config.Discord.EmbedTitle,
+                Color = _config.Discord.GetColor(),
+                Title = _config.Discord.EmbedTitle,
                 Footer = new DiscordWebhook.EmbedFooter
                 {
-                    Text = config.Discord.EmbedFooter,
+                    Text = _config.Discord.EmbedFooter,
                 },
 
                 EmbedFields = new List<DiscordWebhook.EmbedField>()
             };
 
-            foreach (DiscordWebhook.EmbedField field in config.Discord.EmbedFields)
+            foreach (DiscordWebhook.EmbedField field in _config.Discord.EmbedFields)
             {
                 DiscordWebhook.EmbedField fieldToAdd = new DiscordWebhook.EmbedField()
                 {
@@ -1708,13 +1782,13 @@ namespace Oxide.Plugins
         private class DiscordWebhook
         {
             /// <summary>
-            /// Sends a request to the Discord webhook url with the json-serialized message object.
+            /// Sends a request to the Discord _webhook url with the json-serialized message object.
             /// </summary>
-            /// <param name="webhookUrl"> The url of the Discord webhook to send the message to. </param>
+            /// <param name="webhookUrl"> The url of the Discord _webhook to send the message to. </param>
             /// <param name="message"> The message object to be serialized and sent as the body of the request. </param>
             public void SendRequest(string webhookUrl, Message message)
             {
-                instance.webrequest.Enqueue(webhookUrl, message.ToString(), HandleRequestResponse, instance, RequestMethod.POST, new Dictionary<string, string> { { "Content-Type", "application/json" } });
+                _instance.webrequest.Enqueue(webhookUrl, message.ToString(), HandleRequestResponse, _instance, RequestMethod.POST, new Dictionary<string, string> { { "Content-Type", "application/json" } });
             }
 
             /// <summary>
@@ -1747,7 +1821,7 @@ namespace Oxide.Plugins
                 public List<Embed> Embeds { get; set; }
 
                 /// <summary>
-                /// Initializes a new instance of the <see cref="Message"/> class with default property values.
+                /// Initializes a new _instance of the <see cref="Message"/> class with default property values.
                 /// </summary>
                 public Message()
                 {
@@ -1849,7 +1923,7 @@ namespace Oxide.Plugins
                 public List<EmbedField> EmbedFields { get; set; }
 
                 /// <summary>
-                /// Initializes a new instance of the <see cref="Embed"/> class with default property values.
+                /// Initializes a new _instance of the <see cref="Embed"/> class with default property values.
                 /// </summary>
                 public Embed()
                 {
@@ -1902,7 +1976,7 @@ namespace Oxide.Plugins
                 public bool Inline { get; set; }
 
                 /// <summary>
-                /// Initializes a new instance of the <see cref="EmbedField"/> class with default property values.
+                /// Initializes a new _instance of the <see cref="EmbedField"/> class with default property values.
                 /// </summary>
                 public EmbedField()
                 {
@@ -1937,7 +2011,7 @@ namespace Oxide.Plugins
                 public int Height { get; set; }
 
                 /// <summary>
-                /// Initializes a new instance of the <see cref="EmbedThumbnail"/> class with default property values.
+                /// Initializes a new _instance of the <see cref="EmbedThumbnail"/> class with default property values.
                 /// </summary>
                 public EmbedThumbnail()
                 {
@@ -1972,7 +2046,7 @@ namespace Oxide.Plugins
                 public string IconUrl { get; set; }
 
                 /// <summary>
-                /// Initializes a new instance of the <see cref="EmbedAuthor"/> class with default property values.
+                /// Initializes a new _instance of the <see cref="EmbedAuthor"/> class with default property values.
                 /// </summary>
                 public EmbedAuthor()
                 {
@@ -2005,7 +2079,7 @@ namespace Oxide.Plugins
                 public int Height { get; set; }
 
                 /// <summary>
-                /// Initializes a new instance of the <see cref="EmbedImage"/> class with default values for its properties.
+                /// Initializes a new _instance of the <see cref="EmbedImage"/> class with default values for its properties.
                 /// </summary>
                 public EmbedImage()
                 {
@@ -2034,7 +2108,7 @@ namespace Oxide.Plugins
                 public string IconUrl { get; set; }
 
                 /// <summary>
-                /// Initializes a new instance of the <see cref="EmbedFooter"/> class with default property values.
+                /// Initializes a new _instance of the <see cref="EmbedFooter"/> class with default property values.
                 /// </summary>
                 public EmbedFooter()
                 {
@@ -2045,41 +2119,41 @@ namespace Oxide.Plugins
             }
 
             /// <summary>
-            /// Handles the response received from the Discord webhook after sending a request.
+            /// Handles the response received from the Discord _webhook after sending a request.
             /// </summary>
             /// <param name="headerCode"> The http status code of the response. </param>
             /// <param name="headerResult"> The result message of the response. </param>
             private void HandleRequestResponse(int headerCode, string headerResult)
             {
                 if (headerCode >= 200 && headerCode <= 204)
-                    instance.Puts("Discord report sent successfully.");
+                    _instance.Puts("Discord report sent successfully.");
                 else
                 {
                     switch (headerCode)
                     {
                         case 400:
-                            instance.PrintError("Error: Bad request");
+                            _instance.PrintError("Error: Bad request");
                             break;
                         case 401:
-                            instance.PrintError("Error: Unauthorized");
+                            _instance.PrintError("Error: Unauthorized");
                             break;
                         case 403:
-                            instance.PrintError("Error: Forbidden");
+                            _instance.PrintError("Error: Forbidden");
                             break;
                         case 404:
-                            instance.PrintError("Error: Not found");
+                            _instance.PrintError("Error: Not found");
                             break;
                         case 429:
-                            instance.PrintError("Error: Rate limit reached");
+                            _instance.PrintError("Error: Rate limit reached");
                             break;
                         case 500:
-                            instance.PrintError("Error: Internal server error");
+                            _instance.PrintError("Error: Internal server error");
                             break;
                         case 503:
-                            instance.PrintError("Error: Service unavailable");
+                            _instance.PrintError("Error: Service unavailable");
                             break;
                         default:
-                            instance.PrintError("Error: " + headerResult);
+                            _instance.PrintError("Error: " + headerResult);
                             break;
                     }
                 }
@@ -2106,6 +2180,7 @@ namespace Oxide.Plugins
             public const string STASH_REVEAL_METHOD = "$Stash.Reveal.Method";
             public const string STASH_POSITION_COORDINATES = "$Stash.Position.Coordinates";
             public const string STASH_POSITION_GRID = "$Stash.Position.Grid";
+            public const string STASH_ITEMS = "$Stash.Items";
             public const string SERVER_NAME = "$Server.Name";
             public const string SERVER_ADDRESS = "$Server.Address";
 
@@ -2116,22 +2191,22 @@ namespace Oxide.Plugins
             /// <returns></returns>
             public static string ReplacePlaceholders(string text, BasePlayer player, StashContainer stash, bool stashWasKilled)
             {
-                text = text.Replace(PLAYER_NAME, instance.FormatPlayerName(player));
+                text = text.Replace(PLAYER_NAME, _instance.FormatPlayerName(player));
                 text = text.Replace(PLAYER_ID, player.userID.ToString());
                 text = text.Replace(PLAYER_ADDRESS, player.net.connection.ipaddress);
-                text = text.Replace(PLAYER_VIOLATIONS, data.GetPlayerRevealedTrapsCount(player).ToString());
-                text = text.Replace(STASH_OWNER_NAME, instance.StashIsOwned(stash) ? instance.FormatPlayerName(instance.FindPlayerById(stash.OwnerID)) : "Server");
-                text = text.Replace(STASH_OWNER_ID, instance.StashIsOwned(stash) ? stash.OwnerID.ToString() : "0");
-                text = text.Replace(STASH_TYPE, instance.StashIsOwned(stash) ? "Player owned stash" : "Automated trap");
+                text = text.Replace(PLAYER_VIOLATIONS, _data.GetPlayerRevealedTrapsCount(player).ToString());
+                text = text.Replace(STASH_OWNER_NAME, _instance.StashIsOwned(stash) ? _instance.FormatPlayerName(_instance.FindPlayerById(stash.OwnerID)) : "Server");
+                text = text.Replace(STASH_OWNER_ID, _instance.StashIsOwned(stash) ? stash.OwnerID.ToString() : "0");
+                text = text.Replace(STASH_TYPE, _instance.StashIsOwned(stash) ? "Player owned stash" : "Automated trap");
                 text = text.Replace(STASH_REVEAL_METHOD, stashWasKilled ? "Killed by placing a building block on top of it" : "Revealed normally");
                 text = text.Replace(STASH_ID, stash.net.ID.ToString());
                 text = text.Replace(STASH_POSITION_COORDINATES, stash.ServerPosition.ToString());
-                text = text.Replace(STASH_POSITION_GRID, instance.GetGrid(stash.ServerPosition));
-                text = text.Replace(PLAYER_TEAM, instance.FormatTeam(player));
+                text = text.Replace(STASH_POSITION_GRID, _instance.GetGrid(stash.ServerPosition));
+                text = text.Replace(PLAYER_TEAM, _instance.FormatTeam(player));
                 text = text.Replace(PLAYER_COMBAT_ID, player.net.ID.ToString());
-                text = text.Replace(PLAYER_CONNECTION_TIME, instance.FormatConnectionTime(player));
-                text = text.Replace(SERVER_NAME, instance.covalence.Server.Name);
-                text = text.Replace(SERVER_ADDRESS, instance.covalence.Server.Address + ":" + instance.covalence.Server.Port);
+                text = text.Replace(PLAYER_CONNECTION_TIME, _instance.FormatConnectionTime(player));
+                text = text.Replace(SERVER_NAME, _instance.covalence.Server.Name);
+                text = text.Replace(SERVER_ADDRESS, _instance.covalence.Server.Address + ":" + _instance.covalence.Server.Port);
 
                 return text;
             }
@@ -2149,35 +2224,34 @@ namespace Oxide.Plugins
         {
             // Verify the player is not already editing the stash loot table, and remove them if they are.
             StorageContainer storageContainer;
-            if (activeLootEditors.TryGetValue(player, out storageContainer))
+            if (_activeLootEditors.TryGetValue(player, out storageContainer))
                 RemoveLooter(player, storageContainer);
 
             // Create a new storage container for the player to use as a loot editor.
             storageContainer = CreateStorageEntity(STORAGE_PREFAB);
-            // Add the player mapped to the storage container to the 'activeLootEditors' dictionary.
-            activeLootEditors.Add(player, storageContainer);
+            // Add the player mapped to the storage container to the '_activeLootEditors' dictionary.
+            _activeLootEditors.Add(player, storageContainer);
 
             // If the current loot table isn't empty, fill the storage container with its items.         
-            if (config.StashLoot.LootTable != null)
-                foreach (ItemInfo itemInfo in config.StashLoot.LootTable)
+            if (_config.StashLoot.LootTable != null)
+                foreach (ItemInfo itemInfo in _config.StashLoot.LootTable)
                 {
-                    // Create the item by its short name.
                     Item item = ItemManager.CreateByName(itemInfo.ShortName, itemInfo.MaximumSpawnAmount);
                     // Skip the item if it couldn't be created.
                     if (item == null)
                         continue;
 
-                    // Try to add the item to the storage container.
                     if (!item.MoveToContainer(storageContainer.inventory))
-                        // Remove the item if it wasn't added successfully to avoid potential entities leak.
                         item.Remove();
                 }
 
             // Finally, open the storage container's loot panel for the player after a short delay.
-            timer.Once(1.0f, () =>
+            player.Command("gametip.showgametip", "Update the loot table by dragging items from your inventory to the container. Stop looting to save your changes.");
+            timer.Once(5.0f, () =>
             {
                 storageContainer.PlayerOpenLoot(player, doPositionChecks: false);
                 Subscribe(nameof(OnPlayerLootEnd));
+                player?.Command("gametip.hidegametip");
             });
         }
 
@@ -2192,7 +2266,7 @@ namespace Oxide.Plugins
 
             // Try to obtain the storage container associated with the player.
             StorageContainer storageContainer;
-            if (!activeLootEditors.TryGetValue(player, out storageContainer))
+            if (!_activeLootEditors.TryGetValue(player, out storageContainer))
                 return;
 
             // Verify the inventory source belongs to the storage container.
@@ -2200,8 +2274,8 @@ namespace Oxide.Plugins
                 return;
 
             // Update the stash loot table with the items in the storage container.
-            UpdateStashLootTable(storageContainer);
-            // Remove the player from the 'activeLootEditors' dictionary and destroy the storage container.
+            UpdateStashLootTable(storageContainer, player);
+            // Remove the player from the '_activeLootEditors' dictionary and destroy the storage container.
             RemoveLooter(player, storageContainer);
             Unsubscribe(nameof(OnPlayerLootEnd));
         }
@@ -2210,7 +2284,7 @@ namespace Oxide.Plugins
         /// Updates the stash loot table based on the items in the given storage container.
         /// </summary>
         /// <param name="storageContainer"> The storage container containing the items to update the stash loot table with. </param>
-        private void UpdateStashLootTable(StorageContainer storageContainer)
+        private void UpdateStashLootTable(StorageContainer storageContainer, BasePlayer player)
         {
             // Obtain a list of the items in the storage container.
             List<Item> containerItems = Pool.GetList<Item>();
@@ -2232,7 +2306,7 @@ namespace Oxide.Plugins
                 else
                 {
                     // Verify whether the item already exists in the current stash loot table.
-                    ItemInfo existingItem = config.StashLoot.LootTable.FirstOrDefault(t => t.ShortName == item.info.shortname);
+                    ItemInfo existingItem = _config.StashLoot.LootTable.FirstOrDefault(t => t.ShortName == item.info.shortname);
                     // If the item already exists, update its maximum and minimum spawn amounts.
                     if (existingItem != null)
                     {
@@ -2253,8 +2327,10 @@ namespace Oxide.Plugins
             // Free the memory used by the 'containerItems' list and release it back to the pool.
             Pool.FreeList(ref containerItems);
             // Update the stash loot table with the new one.
-            config.StashLoot.LootTable = new List<ItemInfo>(updatedLootTable);
+            _config.StashLoot.LootTable = new List<ItemInfo>(updatedLootTable);
             SaveConfig();
+
+            ReplyToPlayer(player, GetLang(Lang.TRAP_LOOT, player.UserIDString), updatedLootTable.Count());
         }
 
         /// <summary>
@@ -2264,8 +2340,8 @@ namespace Oxide.Plugins
         /// <param name="storageContainer"> The storage container belonging to the player. </param>
         private void RemoveLooter(BasePlayer player, StorageContainer storageContainer)
         {
-            // Remove the player from the 'activeLootEditors' dictionary.
-            activeLootEditors.Remove(player);
+            // Remove the player from the '_activeLootEditors' dictionary.
+            _activeLootEditors.Remove(player);
 
             // If the storage container exists, clear its inventory and destroy it.
             if (storageContainer != null)
@@ -2317,17 +2393,17 @@ namespace Oxide.Plugins
         private void DrawTraps(BasePlayer player, int drawDuration)
         {
             drawDuration = drawDuration == 0 ? 30 : drawDuration;
-            if (!data.AutomatedTraps.Any())
+            if (!_data.AutomatedTraps.Any())
                 return;
 
-            foreach (AutomatedTrapData trap in data.AutomatedTraps.Values)
+            foreach (AutomatedTrapData trap in _data.AutomatedTraps.Values)
             {
                 Vector3 stashPosition = trap.DummyStash.Position;
 
-                Draw.Sphere(player, drawDuration, ParseColor("#BDBDBD", Color.white), stashPosition, config.SpawnPoint.SafeAreaRadius);
+                Draw.Sphere(player, drawDuration, ParseColor("#BDBDBD", Color.white), stashPosition, _config.SpawnPoint.SafeAreaRadius);
                 Draw.Sphere(player, drawDuration, ParseColor("#BDBDBD", Color.white), stashPosition, 0.5f);
                 Draw.Text(player, drawDuration, ParseColor("#F2C94C", Color.white), stashPosition + new Vector3(0, 0.7f, 0), $"<size=30>{trap.DummyStash.Id}</size>");
-
+                
                 if (trap.DummySleepingBag != null)
                 {
                     Vector3 sleepingBagPosition = trap.DummySleepingBag.Position;
@@ -2416,6 +2492,7 @@ namespace Oxide.Plugins
         #endregion Stash Related
 
         #region Player Related
+
         /// <summary>
         /// Finds a player by their unique player id and returns the BasePlayer object.
         /// </summary>
@@ -2499,7 +2576,7 @@ namespace Oxide.Plugins
             List<ulong> teammates = Pool.GetList<ulong>();
             GetTeam(player, teammates, out leader);
 
-            StringBuilder teamInfo = new StringBuilder();
+            StringBuilder formattedTeamText = new StringBuilder();
 
             if (teammates.Count > 0)
             {
@@ -2510,16 +2587,16 @@ namespace Oxide.Plugins
                     {
                         string onlineStatus = member.IsConnected ? "Online" : "Offline";
                         string isLeader = memberId == leader ? "(Leader)" : "";
-                        teamInfo.AppendLine($"{FormatPlayerName(member)} {member.UserIDString} {onlineStatus} {isLeader}");
+                        formattedTeamText.AppendLine($"{FormatPlayerName(member)} {member.UserIDString} {onlineStatus} {isLeader}");
                     }
                 }
             }
             else
             {
-                teamInfo.AppendLine("Player is not in a team.");
+                formattedTeamText.AppendLine("Player is not in a team.");
             }
             Pool.FreeList(ref teammates);
-            return teamInfo.ToString();
+            return formattedTeamText.ToString();
         }
 
         /// <summary>
@@ -2623,8 +2700,8 @@ namespace Oxide.Plugins
             /// </summary>
             public static void Register()
             {
-                instance.permission.RegisterPermission(ADMIN, instance);
-                instance.permission.RegisterPermission(IGNORE, instance);
+                _instance.permission.RegisterPermission(ADMIN, _instance);
+                _instance.permission.RegisterPermission(IGNORE, _instance);
             }
 
             /// <summary>
@@ -2635,10 +2712,9 @@ namespace Oxide.Plugins
             /// <returns> True if the player has the permission, false otherwise. </returns>
             public static bool Verify(BasePlayer player, string permissionName = ADMIN)
             {
-                if (instance.permission.UserHasPermission(player.UserIDString, permissionName))
+                if (_instance.permission.UserHasPermission(player.UserIDString, permissionName))
                     return true;
 
-                // Lang: no permission
                 return false;
             }
         }
@@ -2652,6 +2728,7 @@ namespace Oxide.Plugins
             public const string GIVE = "trap.give";
             public const string LOOT = "trap.loot";
             public const string DRAW = "trap.draw";
+            public const string TELEPORT = "trap.teleport";
         }
 
         [ConsoleCommand(Command.GIVE)]
@@ -2664,7 +2741,10 @@ namespace Oxide.Plugins
 
             // Don't proceed if the player does not have permission to use the command.
             if (!Permission.Verify(player))
+            {
+                ReplyToPlayer(player, GetLang(Lang.ERROR_PERMISSION, player.UserIDString));
                 return;
+            }
 
             // Create the stash item with the specified amount.
             Item item = ItemManager.CreateByName("stash.small", 1);
@@ -2672,7 +2752,9 @@ namespace Oxide.Plugins
             if (item != null)
             {
                 player.GiveItem(item, BaseEntity.GiveItemReason.PickedUp);
-                manualTrapDeployers.Add(player);
+                _manualTrapDeployers.Add(player);
+
+                ReplyToPlayer(player, GetLang(Lang.TRAP_GIVE, player.UserIDString));
             }
         }
 
@@ -2680,7 +2762,10 @@ namespace Oxide.Plugins
         private void cmdLoot(BasePlayer player, string cmd, string[] args)
         {
             if (!Permission.Verify(player))
+            {
+                ReplyToPlayer(player, GetLang(Lang.ERROR_PERMISSION, player.UserIDString));
                 return;
+            }
 
             OpenLootEditor(player);
         }
@@ -2693,15 +2778,76 @@ namespace Oxide.Plugins
                 return;
 
             if (!Permission.Verify(player))
+            {
+                ReplyToPlayer(player, GetLang(Lang.ERROR_PERMISSION, player.UserIDString));
                 return;
+            }
 
             int drawDuration = 0;
             if (conArgs.HasArgs())
                 drawDuration = conArgs.GetInt(0);
 
+            ReplyToPlayer(player, GetLang(Lang.TRAP_DRAW, player.UserIDString), _data.AutomatedTraps.Count());
             DrawTraps(player, drawDuration);
         }
 
+        [ConsoleCommand(Command.TELEPORT)]
+        private void cmdTeleport(ConsoleSystem.Arg conArgs)
+        {
+            BasePlayer player = conArgs?.Player();
+            if (!player.IsValid())
+                return;
+
+            if (!Permission.Verify(player))
+            {
+                ReplyToPlayer(player, GetLang(Lang.ERROR_PERMISSION, player.UserIDString));
+                return;
+            }
+
+            if (_lastRevealedStashPosition != Vector3.zero)
+                player.Teleport(_lastRevealedStashPosition);           
+        }
+
         #endregion Commands
+
+        #region Localization
+
+        private class Lang
+        {
+            public const string ERROR_PERMISSION = "Error.Permission";
+            public const string TRAP_REVEAL = "Trap.Reveal";
+            public const string TRAP_LOOT = "Trap.Loot";
+            public const string TRAP_DRAW = "Trap.Draw";
+            public const string TRAP_GIVE = "Trap.Give";
+            public const string TRAP_SETUP = "Trap.Setup";
+        }
+
+        protected override void LoadDefaultMessages()
+        {
+            lang.RegisterMessages(new Dictionary<string, string>
+            {
+                [Lang.ERROR_PERMISSION] = "You do not have the necessary permission to use this command.",
+                [Lang.TRAP_REVEAL] = "Hidden stash was found by <color=#F2C94C>{0}</color> at <color=#F2C94C>{1}</color>. Don't waste any time! Use <color=#F2994A>trap.teleport</color> to quickly jump to the site.",
+                [Lang.TRAP_LOOT] = "Stash loot table has been updated with a total of <color=#F2C94C>{0}</color> items.",
+                [Lang.TRAP_DRAW] = "Highlighting <color=#F2C94C>{0}</color> deployed traps on the map.",
+                [Lang.TRAP_GIVE] = "You have received a stash trap. Simply place it on the ground to set it up.",
+                [Lang.TRAP_SETUP] = "Trap has been set up and filled with loot.",
+            }, this, "en");
+        }
+        
+        private string GetLang(string langKey, string playerId = null)
+        {
+            return lang.GetMessage(langKey, this, playerId);
+        }
+        
+        private void ReplyToPlayer(BasePlayer player, string message, params object[] args)
+        {
+            if (args.Length > 0)
+                message = string.Format(message, args);
+
+            SendReply(player, $"{_config.Notification.Prefix} {message}");
+        }
+
+        #endregion Localization
     }
 }
