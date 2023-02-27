@@ -19,7 +19,7 @@ using Random = UnityEngine.Random;
 
 namespace Oxide.Plugins
 {
-    [Info("Automated Stash Traps", "Dana", "1.4.0")]
+    [Info("Automated Stash Traps", "Dana", "1.5.0")]
     [Description("Spawns fully automated stash traps across the map to catch ESP cheaters.")]
     public class AutomatedStashTraps : RustPlugin
     {
@@ -171,6 +171,9 @@ namespace Oxide.Plugins
 
             [JsonProperty(PropertyName = "Enable Console Report")]
             public bool EnableConsoleReport { get; set; }
+            
+            [JsonProperty(PropertyName = "Stash Report Filter")]
+            public int StashReportFilter { get; set; }
         }
 
         private class DiscordOptions
@@ -364,7 +367,8 @@ namespace Oxide.Plugins
                 Notification = new NotificationOptions
                 {
                     Prefix = "<color=#F2C94C>Automated Stash Trap</color>:",
-                    EnableConsoleReport = true
+                    EnableConsoleReport = true,
+                    StashReportFilter = 2
                 },
 
                 Discord = new DiscordOptions
@@ -555,6 +559,11 @@ namespace Oxide.Plugins
                 _config.AutomatedTrap.DummySleepingBag.SpawnProximityToStash = defaultConfig.AutomatedTrap.DummySleepingBag.SpawnProximityToStash;
             }
 
+            if (string.Compare(_config.Version, "1.5.0") < 0)
+            {
+                _config.Notification.StashReportFilter = defaultConfig.Notification.StashReportFilter;
+            }
+
             PrintWarning("Configuration update complete! Updated from version " + _config.Version + " to " + Version.ToString());
             _config.Version = Version.ToString();
         }
@@ -573,6 +582,12 @@ namespace Oxide.Plugins
             {
                 PrintError("Invalid sleeping bag spawn proximity. The value must be greater than 0.0 and less than or equal to 1.0. Default value of 0.9 will be applied.");
                 _config.AutomatedTrap.DummySleepingBag.SpawnProximityToStash = 0.90f;
+            }
+
+            if (_config.Notification.StashReportFilter < 0 || _config.Notification.StashReportFilter > 2)
+            {
+                PrintError("Invalid stash report filter value. The value must be 0, 1, or 2. Default value of 2 will be applied.");
+                _config.Notification.StashReportFilter = 2;
             }
 
             if (_config.Discord.PostIntoDiscord)
@@ -1185,6 +1200,9 @@ namespace Oxide.Plugins
             AutomatedTrapData trap = _data.GetTrapData(stash.net.ID);
             if (trap != null)
             {
+                if (_config.Notification.StashReportFilter != 0 && _config.Notification.StashReportFilter != 2)
+                    return;
+
                 if (!trap.DummyStash.Hidden)
                     return;
 
@@ -1194,6 +1212,9 @@ namespace Oxide.Plugins
 
             else if (StashIsOwned(stash))
             {
+                if (_config.Notification.StashReportFilter != 1 && _config.Notification.StashReportFilter != 2)
+                    return;
+
                 if (_revealedOwnedStashes.Contains(stash.net.ID))
                     return;
 
@@ -1240,9 +1261,10 @@ namespace Oxide.Plugins
                 }
             }
 
-            ReplyToPlayer(player, GetLang(Lang.TRAP_REVEAL, player.UserIDString), player.displayName, GetGrid(stash.ServerPosition));
             foreach (BasePlayer admin in BasePlayer.activePlayerList.Where(p => Permission.Verify(p)))
             {
+                ReplyToPlayer(admin, GetLang(Lang.TRAP_REVEAL, admin.UserIDString), player.displayName, GetGrid(stash.ServerPosition));
+
                 Draw.Sphere(admin, 60f, Color.black, _lastRevealedStashPosition, 0.5f);
                 Draw.Arrow(admin, 60f, Color.black, _lastRevealedStashPosition + new Vector3(0, 390f, 0), _lastRevealedStashPosition, 0.50f);
                 Draw.Text(admin, 60f, ParseColor("#F2C94C", Color.white), _lastRevealedStashPosition + new Vector3(0, 390.1f, 0), $"<size=25>{player.displayName}</size>");
@@ -1475,7 +1497,7 @@ namespace Oxide.Plugins
                 if (PositionIsInWater(position) || !PositionIsOnTerrain(position))
                     return false;
 
-                if (PositionIsInRestrictedBuildingZone(position) || PositionIsOnRoad(position))
+                if (PositionIsInRestrictedBuildingZone(position) || PositionIsOnRoadOrRail(position))
                     return false;
 
                 if (PositionIsOnCliff(position) || PositionIsOnRock(position) || PositionIsOnIce(position))
@@ -1514,12 +1536,15 @@ namespace Oxide.Plugins
             /// </summary>
             /// <param name="position"> The position to check. </param>
             /// <returns> True if the position is on a road, false otherwise. </returns>
-            private bool PositionIsOnRoad(Vector3 position)
+            private bool PositionIsOnRoadOrRail(Vector3 position)
             {
                 // Get the terrain topology map.
                 TerrainTopologyMap topology = TerrainMeta.TopologyMap;
                 // Check if the position has road or roadside topology.
                 if (topology.GetTopology(position, TerrainTopology.ROAD) || topology.GetTopology(position, TerrainTopology.ROADSIDE))
+                    return true;
+
+                if (topology.GetTopology(position, TerrainTopology.RAIL) || topology.GetTopology(position, TerrainTopology.RAILSIDE))
                     return true;
 
                 return false;
