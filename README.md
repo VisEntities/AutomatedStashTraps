@@ -1,4 +1,4 @@
-# Cheater hunting just got an upgrade! Are you ready?
+# Cheater hunting just got an upgrade. Are you ready?
 Introducing AutomatedStashTraps, the ultimate weapon in your arsenal against cheaters.
 
 ![](https://i.imgur.com/ocUe4US.png)
