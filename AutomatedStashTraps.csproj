@@ -1,0 +1,381 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{0031A3BE-21B0-458B-A229-00B481ED151E}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>AutomatedStashTraps</RootNamespace>
+    <AssemblyName>AutomatedStashTraps</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>..\..\Plugins\References\Managed\Assembly-CSharp.dll</HintPath>
+    </Reference>
+    <Reference Include="Assembly-CSharp-firstpass">
+      <HintPath>..\..\Plugins\References\Managed\Assembly-CSharp-firstpass.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.BurstCloth">
+      <HintPath>..\..\Plugins\References\Managed\Facepunch.BurstCloth.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.Console">
+      <HintPath>..\..\Plugins\References\Managed\Facepunch.Console.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.Flexbox">
+      <HintPath>..\..\Plugins\References\Managed\Facepunch.Flexbox.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.GoogleSheets">
+      <HintPath>..\..\Plugins\References\Managed\Facepunch.GoogleSheets.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.Input">
+      <HintPath>..\..\Plugins\References\Managed\Facepunch.Input.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.Network">
+      <HintPath>..\..\Plugins\References\Managed\Facepunch.Network.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.Raknet">
+      <HintPath>..\..\Plugins\References\Managed\Facepunch.Raknet.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.Rcon">
+      <HintPath>..\..\Plugins\References\Managed\Facepunch.Rcon.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.Skeleton">
+      <HintPath>..\..\Plugins\References\Managed\Facepunch.Skeleton.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.Sqlite">
+      <HintPath>..\..\Plugins\References\Managed\Facepunch.Sqlite.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.SteamNetworking">
+      <HintPath>..\..\Plugins\References\Managed\Facepunch.SteamNetworking.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.Steamworks.Posix">
+      <HintPath>..\..\Plugins\References\Managed\Facepunch.Steamworks.Posix.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.System">
+      <HintPath>..\..\Plugins\References\Managed\Facepunch.System.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.Unity">
+      <HintPath>..\..\Plugins\References\Managed\Facepunch.Unity.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.UnityEngine">
+      <HintPath>..\..\Plugins\References\Managed\Facepunch.UnityEngine.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.UnwrapBaker.Settings">
+      <HintPath>..\..\Plugins\References\Managed\Facepunch.UnwrapBaker.Settings.dll</HintPath>
+    </Reference>
+    <Reference Include="MySql.Data">
+      <HintPath>..\..\Plugins\References\Managed\MySql.Data.dll</HintPath>
+    </Reference>
+    <Reference Include="netstandard" />
+    <Reference Include="Novell.Directory.Ldap">
+      <HintPath>..\..\Plugins\References\Managed\Novell.Directory.Ldap.dll</HintPath>
+    </Reference>
+    <Reference Include="Oxide.Core">
+      <HintPath>..\..\Plugins\References\Managed\Oxide.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Oxide.CSharp">
+      <HintPath>..\..\Plugins\References\Managed\Oxide.CSharp.dll</HintPath>
+    </Reference>
+    <Reference Include="Oxide.Ext.RustEdit">
+      <HintPath>..\..\Plugins\References\Managed\Oxide.Ext.RustEdit.dll</HintPath>
+    </Reference>
+    <Reference Include="Oxide.MySql">
+      <HintPath>..\..\Plugins\References\Managed\Oxide.MySql.dll</HintPath>
+    </Reference>
+    <Reference Include="Oxide.References">
+      <HintPath>..\..\Plugins\References\Managed\Oxide.References.dll</HintPath>
+    </Reference>
+    <Reference Include="Oxide.Rust">
+      <HintPath>..\..\Plugins\References\Managed\Oxide.Rust.dll</HintPath>
+    </Reference>
+    <Reference Include="Oxide.SQLite">
+      <HintPath>..\..\Plugins\References\Managed\Oxide.SQLite.dll</HintPath>
+    </Reference>
+    <Reference Include="Oxide.Unity">
+      <HintPath>..\..\Plugins\References\Managed\Oxide.Unity.dll</HintPath>
+    </Reference>
+    <Reference Include="Rust.Data">
+      <HintPath>..\..\Plugins\References\Managed\Rust.Data.dll</HintPath>
+    </Reference>
+    <Reference Include="Rust.Demo">
+      <HintPath>..\..\Plugins\References\Managed\Rust.Demo.dll</HintPath>
+    </Reference>
+    <Reference Include="Rust.FileSystem">
+      <HintPath>..\..\Plugins\References\Managed\Rust.FileSystem.dll</HintPath>
+    </Reference>
+    <Reference Include="Rust.Global">
+      <HintPath>..\..\Plugins\References\Managed\Rust.Global.dll</HintPath>
+    </Reference>
+    <Reference Include="Rust.Harmony">
+      <HintPath>..\..\Plugins\References\Managed\Rust.Harmony.dll</HintPath>
+    </Reference>
+    <Reference Include="Rust.Localization">
+      <HintPath>..\..\Plugins\References\Managed\Rust.Localization.dll</HintPath>
+    </Reference>
+    <Reference Include="Rust.Platform">
+      <HintPath>..\..\Plugins\References\Managed\Rust.Platform.dll</HintPath>
+    </Reference>
+    <Reference Include="Rust.Platform.Common">
+      <HintPath>..\..\Plugins\References\Managed\Rust.Platform.Common.dll</HintPath>
+    </Reference>
+    <Reference Include="Rust.Platform.Steam">
+      <HintPath>..\..\Plugins\References\Managed\Rust.Platform.Steam.dll</HintPath>
+    </Reference>
+    <Reference Include="Rust.UI">
+      <HintPath>..\..\Plugins\References\Managed\Rust.UI.dll</HintPath>
+    </Reference>
+    <Reference Include="Rust.Workshop">
+      <HintPath>..\..\Plugins\References\Managed\Rust.Workshop.dll</HintPath>
+    </Reference>
+    <Reference Include="Rust.World">
+      <HintPath>..\..\Plugins\References\Managed\Rust.World.dll</HintPath>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Buffers, Version=4.0.3.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\Plugins\References\Managed\System.Buffers.dll</HintPath>
+    </Reference>
+    <Reference Include="System.ComponentModel.Composition" />
+    <Reference Include="System.ComponentModel.DataAnnotations" />
+    <Reference Include="System.Configuration" />
+    <Reference Include="System.Configuration.Install" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Xml" />
+    <Reference Include="Unity.Burst">
+      <HintPath>..\..\Plugins\References\Managed\Unity.Burst.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.Burst.Unsafe">
+      <HintPath>..\..\Plugins\References\Managed\Unity.Burst.Unsafe.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.Mathematics">
+      <HintPath>..\..\Plugins\References\Managed\Unity.Mathematics.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.Recorder">
+      <HintPath>..\..\Plugins\References\Managed\Unity.Recorder.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.Recorder.Base">
+      <HintPath>..\..\Plugins\References\Managed\Unity.Recorder.Base.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.TerrainTools">
+      <HintPath>..\..\Plugins\References\Managed\Unity.TerrainTools.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>..\..\Plugins\References\Managed\Unity.TextMeshPro.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.Timeline">
+      <HintPath>..\..\Plugins\References\Managed\Unity.Timeline.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.AccessibilityModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.AccessibilityModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.AIModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.AIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.AndroidJNIModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.AndroidJNIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.AnimationModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.AnimationModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.AssetBundleModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.AssetBundleModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.AudioModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.ClothModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.ClothModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.ClusterInputModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.ClusterInputModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.ClusterRendererModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.ClusterRendererModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.CoreModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.CrashReportingModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.CrashReportingModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.DirectorModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.DirectorModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.DSPGraphModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.DSPGraphModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.GameCenterModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.GameCenterModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.GridModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.GridModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.HotReloadModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.HotReloadModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.ImageConversionModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.ImageConversionModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.IMGUIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.InputModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.InputModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.JSONSerializeModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.JSONSerializeModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.LocalizationModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.LocalizationModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.ParticleSystemModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.ParticleSystemModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.PerformanceReportingModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.PerformanceReportingModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.Physics2DModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.Physics2DModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.PhysicsModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.ProfilerModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.ProfilerModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.ScreenCaptureModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.ScreenCaptureModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.SharedInternalsModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.SharedInternalsModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.SpriteMaskModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.SpriteMaskModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.SpriteShapeModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.SpriteShapeModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.StreamingModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.StreamingModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.SubstanceModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.SubstanceModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.SubsystemsModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.SubsystemsModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.TerrainModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.TerrainModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.TerrainPhysicsModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.TerrainPhysicsModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.TextCoreModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.TextCoreModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.TilemapModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.TilemapModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.TLSModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.TLSModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.UI.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UIElementsModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.UIElementsModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.UIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UmbraModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.UmbraModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UNETModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.UNETModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityAnalyticsModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.UnityAnalyticsModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityConnectModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.UnityConnectModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityTestProtocolModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.UnityTestProtocolModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestAssetBundleModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.UnityWebRequestAssetBundleModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestAudioModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.UnityWebRequestAudioModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.UnityWebRequestModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestTextureModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.UnityWebRequestTextureModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestWWWModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.UnityWebRequestWWWModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.VehiclesModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.VehiclesModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.VFXModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.VFXModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.VideoModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.VideoModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.VRModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.VRModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.WindModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.WindModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.XRModule">
+      <HintPath>..\..\Plugins\References\Managed\UnityEngine.XRModule.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="AutomatedStashTraps.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>
