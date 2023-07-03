@@ -343,4 +343,5 @@ A portion of the contributions will also be donated to the uMod team as a token 
 -------
 
 ## Credits
+* Originally created and maintained ever since by **Dana**.
 * Your work has been an inspiration, **WhiteThunder**. Thank you.
