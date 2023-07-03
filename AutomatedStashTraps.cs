@@ -24,10 +24,14 @@ namespace Oxide.Plugins
     [Description("Spawns fully automated stash traps across the map to catch ESP cheaters.")]
     public class AutomatedStashTraps : RustPlugin
     {
-        #region Fields
+        #region Dependencies
 
         [PluginReference]
         private readonly Plugin Clans;
+
+        #endregion Dependencies
+
+        #region Fields
 
         private static AutomatedStashTraps _instance;
         private static Configuration _config;
@@ -59,142 +63,142 @@ namespace Oxide.Plugins
 
         private class Configuration
         {
-            [JsonProperty(PropertyName = "Version")]
+            [JsonProperty("Version")]
             public string Version { get; set; }
 
-            [JsonProperty(PropertyName = "Spawn Point")]
-            public SpawnPointOptions SpawnPoint { get; set; }
+            [JsonProperty("Spawn Point")]
+            public SpawnPointConfig SpawnPoint { get; set; }
 
-            [JsonProperty(PropertyName = "Automated Trap")]
-            public AutomatedTrapOptions AutomatedTrap { get; set; }
+            [JsonProperty("Automated Trap")]
+            public AutomatedTrapConfig AutomatedTrap { get; set; }
 
-            [JsonProperty(PropertyName = "Violation")]
-            public ViolationOptions Violation { get; set; }
+            [JsonProperty("Violation")]
+            public ViolationConfig Violation { get; set; }
 
-            [JsonProperty(PropertyName = "Moderation")]
-            public ModerationOptions Moderation { get; set; }
+            [JsonProperty("Moderation")]
+            public ModerationConfig Moderation { get; set; }
 
-            [JsonProperty(PropertyName = "Notification")]
-            public NotificationOptions Notification { get; set; }
+            [JsonProperty("Notification")]
+            public NotificationConfig Notification { get; set; }
 
-            [JsonProperty(PropertyName = "Discord")]
-            public DiscordOptions Discord { get; set; }
+            [JsonProperty("Discord")]
+            public DiscordConfig Discord { get; set; }
 
-            [JsonProperty(PropertyName = "Stash Loot")]
-            public StashLootOptions StashLoot { get; set; }
+            [JsonProperty("Stash Loot")]
+            public StashLootConfig StashLoot { get; set; }
         }
 
-        private class SpawnPointOptions
+        private class SpawnPointConfig
         {
-            [JsonProperty(PropertyName = "Maximum Attempts To Find Spawn Points")]
+            [JsonProperty("Maximum Attempts To Find Spawn Points")]
             public int MaximumAttemptsToFindSpawnPoints { get; set; }
 
-            [JsonProperty(PropertyName = "Safe Area Radius")]
+            [JsonProperty("Safe Area Radius")]
             public float SafeAreaRadius { get; set; }
 
-            [JsonProperty(PropertyName = "Entity Detection Radius")]
+            [JsonProperty("Entity Detection Radius")]
             public float EntityDetectionRadius { get; set; }
 
-            [JsonProperty(PropertyName = "Player Detection Radius")]
+            [JsonProperty("Player Detection Radius")]
             public float PlayerDetectionRadius { get; set; }
         }
 
-        private class AutomatedTrapOptions
+        private class AutomatedTrapConfig
         {
-            [JsonProperty(PropertyName = "Maximum Traps To Spawn")]
+            [JsonProperty("Maximum Traps To Spawn")]
             public int MaximumTrapsToSpawn { get; set; }
 
-            [JsonProperty(PropertyName = "Destroy Revealed Trap After Minutes")]
+            [JsonProperty("Destroy Revealed Trap After Minutes")]
             public int DestroyRevealedTrapAfterMinutes { get; set; }
 
-            [JsonProperty(PropertyName = "Replace Revealed Trap")]
+            [JsonProperty("Replace Revealed Trap")]
             public bool ReplaceRevealedTrap { get; set; }
 
-            [JsonProperty(PropertyName = "Dummy Sleeping Bag")]
-            public DummySleepingBagOptions DummySleepingBag { get; set; }
+            [JsonProperty("Dummy Sleeping Bag")]
+            public DummySleepingBagConfig DummySleepingBag { get; set; }
         }
 
-        private class DummySleepingBagOptions
+        private class DummySleepingBagConfig
         {
-            [JsonProperty(PropertyName = "Spawn Along")]
+            [JsonProperty("Spawn Along")]
             public bool SpawnAlong { get; set; }
 
-            [JsonProperty(PropertyName = "Spawn Proximity To Stash")]
+            [JsonProperty("Spawn Proximity To Stash")]
             public float SpawnProximityToStash { get; set; }
 
-            [JsonProperty(PropertyName = "Spawn Chance")]
+            [JsonProperty("Spawn Chance")]
             public int SpawnChance { get; set; }
 
-            [JsonProperty(PropertyName = "Randomized Skin Chance")]
+            [JsonProperty("Randomized Skin Chance")]
             public int RandomizedSkinChance { get; set; }
 
-            [JsonProperty(PropertyName = "Randomized Nice Name Chance")]
+            [JsonProperty("Randomized Nice Name Chance")]
             public int RandomizedNiceNameChance { get; set; }
         }
 
-        private class ViolationOptions
+        private class ViolationConfig
         {
-            [JsonProperty(PropertyName = "Reset On Wipe")]
+            [JsonProperty("Reset On Wipe")]
             public bool ResetOnWipe { get; set; }
 
-            [JsonProperty(PropertyName = "Can Teammate Ignore")]
+            [JsonProperty("Can Teammate Ignore")]
             public bool CanTeammateIgnore { get; set; }
 
-            [JsonProperty(PropertyName = "Can Clanmate Ignore")]
+            [JsonProperty("Can Clanmate Ignore")]
             public bool CanClanmateIgnore { get; set; }
         }
 
-        private class ModerationOptions
+        private class ModerationConfig
         {
-            [JsonProperty(PropertyName = "Automatic Ban")]
+            [JsonProperty("Automatic Ban")]
             public bool AutomaticBan { get; set; }
 
-            [JsonProperty(PropertyName = "Violations Tolerance")]
+            [JsonProperty("Violations Tolerance")]
             public int ViolationsTolerance { get; set; }
 
-            [JsonProperty(PropertyName = "Ban Delay Seconds")]
+            [JsonProperty("Ban Delay Seconds")]
             public int BanDelaySeconds { get; set; }
 
-            [JsonProperty(PropertyName = "Ban Reason")]
+            [JsonProperty("Ban Reason")]
             public string BanReason { get; set; }
         }
 
-        private class NotificationOptions
+        private class NotificationConfig
         {
-            [JsonProperty(PropertyName = "Prefix")]
+            [JsonProperty("Prefix")]
             public string Prefix { get; set; }
 
-            [JsonProperty(PropertyName = "Enable Console Report")]
+            [JsonProperty("Enable Console Report")]
             public bool EnableConsoleReport { get; set; }
 
-            [JsonProperty(PropertyName = "Stash Report Filter")]
+            [JsonProperty("Stash Report Filter")]
             public int StashReportFilter { get; set; }
         }
 
-        private class DiscordOptions
+        private class DiscordConfig
         {
-            [JsonProperty(PropertyName = "Post Into Discord")]
+            [JsonProperty("Post Into Discord")]
             public bool PostIntoDiscord { get; set; }
 
-            [JsonProperty(PropertyName = "Webhook Url")]
+            [JsonProperty("Webhook Url")]
             public string WebhookUrl { get; set; }
 
-            [JsonProperty(PropertyName = "Report Interval")]
+            [JsonProperty("Report Interval")]
             public float ReportInterval { get; set; }
 
-            [JsonProperty(PropertyName = "Message")]
+            [JsonProperty("Message")]
             public string Message { get; set; }
 
-            [JsonProperty(PropertyName = "Embed Color")]
+            [JsonProperty("Embed Color")]
             public string EmbedColor { get; set; }
 
-            [JsonProperty(PropertyName = "Embed Title")]
+            [JsonProperty("Embed Title")]
             public string EmbedTitle { get; set; }
 
-            [JsonProperty(PropertyName = "Embed Footer")]
+            [JsonProperty("Embed Footer")]
             public string EmbedFooter { get; set; }
 
-            [JsonProperty(PropertyName = "Embed Fields")]
+            [JsonProperty("Embed Fields")]
             public List<DiscordWebhook.EmbedField> EmbedFields { get; set; }
 
             [JsonIgnore]
@@ -216,48 +220,48 @@ namespace Oxide.Plugins
             }
         }
 
-        private class StashLootOptions
+        private class StashLootConfig
         {
-            [JsonProperty(PropertyName = "Minimum Loot Spawn Slots")]
+            [JsonProperty("Minimum Loot Spawn Slots")]
             public int MinimumLootSpawnSlots { get; set; }
 
-            [JsonProperty(PropertyName = "Maximum Loot Spawn Slots")]
+            [JsonProperty("Maximum Loot Spawn Slots")]
             public int MaximumLootSpawnSlots { get; set; }
 
-            [JsonProperty(PropertyName = "Spawn Chance As Blueprint")]
+            [JsonProperty("Spawn Chance As Blueprint")]
             public int SpawnChanceAsBlueprint { get; set; }
 
-            [JsonProperty(PropertyName = "Spawn Chance With Skin")]
+            [JsonProperty("Spawn Chance With Skin")]
             public int SpawnChanceWithSkin { get; set; }
 
-            [JsonProperty(PropertyName = "Spawn Chance As Damaged")]
+            [JsonProperty("Spawn Chance As Damaged")]
             public int SpawnChanceAsDamaged { get; set; }
 
-            [JsonProperty(PropertyName = "Minimum Condition Loss")]
+            [JsonProperty("Minimum Condition Loss")]
             public float MinimumConditionLoss { get; set; }
 
-            [JsonProperty(PropertyName = "Maximum Condition Loss")]
+            [JsonProperty("Maximum Condition Loss")]
             public float MaximumConditionLoss { get; set; }
 
-            [JsonProperty(PropertyName = "Spawn Chance As Repaired")]
+            [JsonProperty("Spawn Chance As Repaired")]
             public int SpawnChanceAsRepaired { get; set; }
 
-            [JsonProperty(PropertyName = "Spawn Chance As Broken")]
+            [JsonProperty("Spawn Chance As Broken")]
             public int SpawnChanceAsBroken { get; set; }
 
-            [JsonProperty(PropertyName = "Loot Table")]
+            [JsonProperty("Loot Table")]
             public List<ItemInfo> LootTable { get; set; }
         }
 
         private class ItemInfo
         {
-            [JsonProperty(PropertyName = "Short Name")]
+            [JsonProperty("Short Name")]
             public string ShortName { get; set; }
 
-            [JsonProperty(PropertyName = "Minimum Spawn Amount")]
+            [JsonProperty("Minimum Spawn Amount")]
             public int MinimumSpawnAmount { get; set; }
 
-            [JsonProperty(PropertyName = "Maximum Spawn Amount")]
+            [JsonProperty("Maximum Spawn Amount")]
             public int MaximumSpawnAmount { get; set; }
 
             [JsonIgnore]
@@ -321,7 +325,7 @@ namespace Oxide.Plugins
             {
                 Version = Version.ToString(),
 
-                SpawnPoint = new SpawnPointOptions
+                SpawnPoint = new SpawnPointConfig
                 {
                     MaximumAttemptsToFindSpawnPoints = 1500,
                     SafeAreaRadius = 3f,
@@ -329,14 +333,14 @@ namespace Oxide.Plugins
                     PlayerDetectionRadius = 25f
                 },
 
-                AutomatedTrap = new AutomatedTrapOptions
+                AutomatedTrap = new AutomatedTrapConfig
                 {
                     MaximumTrapsToSpawn = 50,
                     DestroyRevealedTrapAfterMinutes = 2,
                     ReplaceRevealedTrap = true,
-                    DummySleepingBag = new DummySleepingBagOptions
+                    DummySleepingBag = new DummySleepingBagConfig
                     {
-                        SpawnAlong = true,
+                        SpawnAlong = false,
                         SpawnProximityToStash = 0.90f,
                         SpawnChance = 50,
                         RandomizedSkinChance = 40,
@@ -344,14 +348,14 @@ namespace Oxide.Plugins
                     }
                 },
 
-                Violation = new ViolationOptions
+                Violation = new ViolationConfig
                 {
                     ResetOnWipe = true,
                     CanTeammateIgnore = false,
                     CanClanmateIgnore = false
                 },
 
-                Moderation = new ModerationOptions
+                Moderation = new ModerationConfig
                 {
                     AutomaticBan = false,
                     ViolationsTolerance = 3,
@@ -359,14 +363,14 @@ namespace Oxide.Plugins
                     BanReason = "Cheat Detected!"
                 },
 
-                Notification = new NotificationOptions
+                Notification = new NotificationConfig
                 {
                     Prefix = "<color=#F2C94C>Automated Stash Trap</color>:",
                     EnableConsoleReport = true,
                     StashReportFilter = 2
                 },
 
-                Discord = new DiscordOptions
+                Discord = new DiscordConfig
                 {
                     PostIntoDiscord = false,
                     WebhookUrl = string.Empty,
@@ -452,7 +456,7 @@ namespace Oxide.Plugins
                     }
                 },
 
-                StashLoot = new StashLootOptions
+                StashLoot = new StashLootConfig
                 {
                     MinimumLootSpawnSlots = 1,
                     MaximumLootSpawnSlots = 6,
@@ -643,10 +647,10 @@ namespace Oxide.Plugins
 
         private class Data
         {
-            [JsonProperty(PropertyName = "Violations")]
+            [JsonProperty("Violations")]
             public Dictionary<ulong, int> Violations { get; set; } = new Dictionary<ulong, int>();
 
-            [JsonProperty(PropertyName = "Automated Traps")]
+            [JsonProperty("Automated Traps")]
             public Dictionary<ulong, AutomatedTrapData> AutomatedTraps { get; set; } = new Dictionary<ulong, AutomatedTrapData>();
 
             public static Data Load()
@@ -721,37 +725,37 @@ namespace Oxide.Plugins
 
         private class AutomatedTrapData
         {
-            [JsonProperty(PropertyName = "Dummy Stash")]
+            [JsonProperty("Dummy Stash")]
             public DummyStashData DummyStash { get; set; }
 
-            [JsonProperty(PropertyName = "Dummy Sleeping Bag")]
+            [JsonProperty("Dummy Sleeping Bag")]
             public DummySleepingBagData DummySleepingBag { get; set; }
         }
 
         private class DummyStashData
         {
-            [JsonProperty(PropertyName = "Hidden")]
+            [JsonProperty("Hidden")]
             public bool Hidden { get; set; }
 
-            [JsonProperty(PropertyName = "Id")]
+            [JsonProperty("Id")]
             public ulong Id { get; set; }
 
-            [JsonProperty(PropertyName = "Position")]
+            [JsonProperty("Position")]
             public Vector3 Position { get; set; }
         }
 
         private class DummySleepingBagData
         {
-            [JsonProperty(PropertyName = "Id")]
+            [JsonProperty("Id")]
             public ulong Id { get; set; }
 
-            [JsonProperty(PropertyName = "Nice Name")]
+            [JsonProperty("Nice Name")]
             public string NiceName { get; set; }
 
-            [JsonProperty(PropertyName = "Skin Id")]
+            [JsonProperty("Skin Id")]
             public ulong SkinId { get; set; }
 
-            [JsonProperty(PropertyName = "Position")]
+            [JsonProperty("Position")]
             public Vector3 Position { get; set; }
         }
 
@@ -770,7 +774,7 @@ namespace Oxide.Plugins
             _spawnPointManager = new SpawnPointManager();
 
             _data = Data.Load();
-            Permission.Register();
+            PermissionUtils.Register();
         }
 
         /// <summary>
@@ -791,9 +795,7 @@ namespace Oxide.Plugins
             _spawnPointManager.ClearAvailableSpawnPoints();
 
             _lastRevealedStashPosition = Vector3.zero;
-
-            if (_reportScheduler != null)
-                _reportScheduler.Destroy();
+             _reportScheduler?.Destroy();
 
             _instance = null;
             _config = null;
@@ -816,21 +818,17 @@ namespace Oxide.Plugins
         /// <param name="gameObject"> Contains information about the built entity. </param>
         private void OnEntityBuilt(Planner planner, GameObject gameObject)
         {
-            // Obtain the stash container entity from the game object component.
             StashContainer stash = gameObject?.ToBaseEntity() as StashContainer;
             if (!stash)
                 return;
 
-            // Obtain the deploying player from the planner.
             BasePlayer deployingPlayer = planner?.GetOwnerPlayer();
             if (!deployingPlayer)
                 return;
 
-            // Don't proceed if the deploying player is not on the list of players allowed to create manual traps.
             if (!_manualTrapDeployers.Contains(deployingPlayer))
                 return;
 
-            // Initialize the stash by populating it with loot and hiding it underground.
             PopulateLoot(stash);
             stash.SetHidden(true);
             _manualTrapDeployers.Remove(deployingPlayer);
@@ -867,7 +865,7 @@ namespace Oxide.Plugins
         /// <param name="player"> The player who revealed the stash. </param>
         private void OnStashExposed(StashContainer stash, BasePlayer player)
         {
-            if (Permission.Verify(player, Permission.IGNORE))
+            if (PermissionUtils.Verify(player, PermissionUtils.IGNORE))
                 return;
 
             OnStashTriggered(stash, player, false);
@@ -880,7 +878,6 @@ namespace Oxide.Plugins
         /// <param name="player"> The player who buried the stash. </param>
         private void OnStashHidden(StashContainer stash, BasePlayer player)
         {
-            // To address a weird case scenario.
             if (PlayerIsStashOwner(stash, player))
                 return;
             else if (!PlayerExistsInOwnerTeam(stash.OwnerID, player))
@@ -908,9 +905,8 @@ namespace Oxide.Plugins
             // Proceed if the coroutine is currently running.
             if (!_spawnCoroutine.IsUnityNull())
             {
-                // Stop the execution of the coroutine.
+                // Stop the execution of the coroutine and release it to be garbage collected.
                 ServerMgr.Instance.StopCoroutine(_spawnCoroutine);
-                // Release the coroutine reference to allow it to be garbage collected.
                 _spawnCoroutine = null;
             }
         }
@@ -973,7 +969,6 @@ namespace Oxide.Plugins
             Puts("Spawned " + spawnedTraps + " traps.");
             // Save the trap _data and set the coroutine to null to be garbage collected.
             _data.Save();
-            _spawnCoroutine = null;
         }
 
         /// <summary>
@@ -1256,7 +1251,7 @@ namespace Oxide.Plugins
                 }
             }
 
-            foreach (BasePlayer admin in BasePlayer.activePlayerList.Where(p => Permission.Verify(p)))
+            foreach (BasePlayer admin in BasePlayer.activePlayerList.Where(p => PermissionUtils.Verify(p)))
             {
                 ReplyToPlayer(admin, GetLang(Lang.TRAP_REVEAL, admin.UserIDString), player.displayName, GetGrid(stash.ServerPosition));
 
@@ -1302,7 +1297,7 @@ namespace Oxide.Plugins
             if (buildingBlock != null)
             {
                 BasePlayer buildingBlockOwner = FindPlayerById(buildingBlock.OwnerID);
-                if (Permission.Verify(buildingBlockOwner, Permission.IGNORE))
+                if (PermissionUtils.Verify(buildingBlockOwner, PermissionUtils.IGNORE))
                     return;
 
                 OnStashTriggered(stash, buildingBlockOwner, true);
@@ -1569,7 +1564,7 @@ namespace Oxide.Plugins
             private bool PositionIsInWater(Vector3 position)
             {
                 // Check if the position is within the water level.
-                return WaterLevel.Test(position);
+                return WaterLevel.Test(position, true, true);
             }
 
             /// <summary>
@@ -2705,42 +2700,26 @@ namespace Oxide.Plugins
 
         #endregion Helper Functions
 
-        #region Permissions
+        #region Helper Classes
 
-        /// <summary>
-        /// Contains utility methods for checking and registering plugin permissions.
-        /// </summary>
-        private static class Permission
+        private static class PermissionUtils
         {
-            // Permission required to use admin commands.
             public const string ADMIN = "automatedstashtraps.admin";
             public const string IGNORE = "automatedstashtraps.ignore";
 
-            /// <summary>
-            /// Registers permissions used by the plugin.
-            /// </summary>
             public static void Register()
             {
                 _instance.permission.RegisterPermission(ADMIN, _instance);
                 _instance.permission.RegisterPermission(IGNORE, _instance);
             }
 
-            /// <summary>
-            /// Determines whether the given player has the specified permission.
-            /// </summary>
-            /// <param name="player"> The player to check. </param>
-            /// <param name="permissionName"> The name of the permission to check. Defaults to the 'Admin' permission. </param>
-            /// <returns> True if the player has the permission, false otherwise. </returns>
             public static bool Verify(BasePlayer player, string permissionName = ADMIN)
             {
-                if (_instance.permission.UserHasPermission(player.UserIDString, permissionName))
-                    return true;
-
-                return false;
+                return _instance.permission.UserHasPermission(player.UserIDString, permissionName);
             }
         }
 
-        #endregion Permissions
+        #endregion Helper Classes
 
         #region Commands
 
@@ -2761,7 +2740,7 @@ namespace Oxide.Plugins
                 return;
 
             // Don't proceed if the player does not have permission to use the command.
-            if (!Permission.Verify(player))
+            if (!PermissionUtils.Verify(player))
             {
                 ReplyToPlayer(player, GetLang(Lang.ERROR_PERMISSION, player.UserIDString));
                 return;
@@ -2782,7 +2761,7 @@ namespace Oxide.Plugins
         [ChatCommand(Command.LOOT)]
         private void cmdLoot(BasePlayer player, string cmd, string[] args)
         {
-            if (!Permission.Verify(player))
+            if (!PermissionUtils.Verify(player))
             {
                 ReplyToPlayer(player, GetLang(Lang.ERROR_PERMISSION, player.UserIDString));
                 return;
@@ -2798,7 +2777,7 @@ namespace Oxide.Plugins
             if (!player.IsValid())
                 return;
 
-            if (!Permission.Verify(player))
+            if (!PermissionUtils.Verify(player))
             {
                 ReplyToPlayer(player, GetLang(Lang.ERROR_PERMISSION, player.UserIDString));
                 return;
@@ -2819,7 +2798,7 @@ namespace Oxide.Plugins
             if (!player.IsValid())
                 return;
 
-            if (!Permission.Verify(player))
+            if (!PermissionUtils.Verify(player))
             {
                 ReplyToPlayer(player, GetLang(Lang.ERROR_PERMISSION, player.UserIDString));
                 return;
