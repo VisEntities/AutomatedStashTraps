@@ -1,5 +1,6 @@
 # Cheater hunting just got an upgrade! Are you ready?
 Tired of those sneaky ESP cheaters always getting away with stealing your players' hard-earned loot? Well, no more. With AutomatedStashTrap, you'll be one step ahead of them at all times. From identifying when stashes are revealed to spawning irresistible stash traps across the map, this plugin is like a cheater magnet, catching cheaters left and right! So sit back, relax, and watch as they walk right into your traps.
+
 ![](https://i.imgur.com/ocUe4US.png)
 
 -----
