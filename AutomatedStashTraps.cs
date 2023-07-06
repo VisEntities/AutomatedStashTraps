@@ -1564,7 +1564,7 @@ namespace Oxide.Plugins
             private bool PositionIsInWater(Vector3 position)
             {
                 // Check if the position is within the water level.
-                return WaterLevel.Test(position, true, true);
+                return WaterLevel.Test(position, false, false);
             }
 
             /// <summary>
