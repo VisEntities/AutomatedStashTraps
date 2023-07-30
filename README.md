@@ -1,12 +1,12 @@
 # Cheater hunting just got an upgrade! Are you ready?
-Fed up with  ESP cheaters stealing your players' hard-earned loot? Say goodbye to that. AutomatedStashTrap keeps you one step ahead of them all the time. It's like a cheater magnet, catching cheaters left and right! So sit back, chill, and enjoy as they walk right into your traps.
+Fed up with  ESP cheaters stealing your players' hard-earned loot? Say goodbye to that, this plugin keeps you one step ahead of them all the time. It's like a cheater magnet, catching cheaters left and right! So sit back, chill, and enjoy as they walk right into your traps.
 
 ![](https://i.imgur.com/ocUe4US.png)
 
 -----
 
 ## Spawn points
-When the plugin is loaded, it'll initiate a thorough map scan to pinpoint the ideal locations for trap deployment, ensuring a diverse distribution that keeps cheaters guessing.
+When AutomatedStashTraps is loaded, it'll initiate a thorough map scan to pinpoint the ideal locations for trap deployment, ensuring a diverse distribution that keeps cheaters guessing.
 
 The spawn point generator considers a wide range of terrain types, including cliffs, rocks, ice sheets, roads, and monuments, ensuring that traps are only spawned in believable locations where players can realistically build and deploy stashes, making it less likely for cheaters to suspect foul play.
 
