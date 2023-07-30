@@ -6,7 +6,7 @@ Fed up with  ESP cheaters stealing your players' hard-earned loot? Say goodbye t
 -----
 
 ## Spawn points
-When AutomatedStashTraps is loaded, it'll initiate a thorough map scan to pinpoint the ideal locations for trap deployment, ensuring a diverse distribution that keeps cheaters guessing.
+When the plugin is loaded, it'll initiate a thorough map scan to pinpoint the ideal locations for trap deployment, ensuring a diverse distribution that keeps cheaters guessing.
 
 The spawn point generator considers a wide range of terrain types, including cliffs, rocks, ice sheets, roads, and monuments, ensuring that traps are only spawned in believable locations where players can realistically build and deploy stashes, making it less likely for cheaters to suspect foul play.
 
